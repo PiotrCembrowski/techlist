@@ -1,0 +1,137 @@
+# Decisions
+
+One entry per non-obvious engineering decision: **decision**, **reason**, **alternatives**.
+
+## 2026-11-19 — Stages 1–2
+
+### D1. Design direction 1a "Drafting Sheet"
+
+- **Decision:** Implement the 1a direction from the Claude Design Round 1 board (`design/project/`): Industry system, cool grey `#f2f2f3` ground, single steel accent (`#416180` light / `#94bce3` dark), Barlow + Barlow Condensed, square hairline frames with `+` registration marks.
+- **Reason:** Chosen by the product owner.
+- **Alternatives:** 1b Reference Index, 1c Instrument Panel (on the same board).
+
+### D2. Tokens map to shadcn variable names
+
+- **Decision:** `globals.css` defines the shadcn set (`--background`, `--primary`, `--ring`, …) plus `--success`, `--warning`, `--verified`, `--stale`, `--border-strong`, for `:root` and `.dark`, mapped to Tailwind via `@theme inline`. `--radius` is `0px`.
+- **Reason:** The brief asks for shadcn-compatible tokens; square corners are central to the Industry system.
+- **Alternatives:** Tailwind config tokens (Tailwind 4 prefers CSS-first config).
+
+### D3. Self-hosted fonts via Fontsource
+
+- **Decision:** `@fontsource/barlow` and `@fontsource/barlow-condensed`, imported in the root layout.
+- **Reason:** Builds need no network access and visitors' browsers make no third-party font requests. Same OFL fonts as the design.
+- **Alternatives:** `next/font/google` (downloads at build time).
+
+### D4. TypeScript 5.9 instead of 7
+
+- **Decision:** Pin `typescript@5.9.3`.
+- **Reason:** TypeScript 7 (the native port) became `latest` recently; Next.js's build-time type checking relies on the TypeScript JS API, which 5.x provides.
+- **Alternatives:** TS 7 once Next.js supports it.
+
+### D5. PostgreSQL enums for every enumerated column
+
+- **Decision:** Use `pgEnum` consistently (product/publication/verification status, data types, origins, source types, offer states, review types, roles, …).
+- **Reason:** Spec §5.1 asks for consistency; enums give type safety in Drizzle and in the database.
+- **Alternatives:** `text` + `CHECK` (easier to extend, but adding enum values is a cheap migration anyway).
+
+### D6. Separate `spec_verification_status` enum: `unverified | verified | rejected`
+
+- **Decision:** Specification values use their own status enum rather than the product-level one.
+- **Reason:** Rule 2.1.8 uses the word `unverified`, which the product enum doesn't have; product-level states like `partially_verified` make no sense for a single value. A CHECK requires `last_verified_at` whenever a value is `verified`.
+- **Alternatives:** Reuse the product enum.
+
+### D7. Immutable `sb_unaccent()` wrapper
+
+- **Decision:** Migration 0000 creates `sb_unaccent(text)`, an IMMUTABLE SQL function calling `public.unaccent('public.unaccent', $1)`. It is used in the `lower(sb_unaccent(name))` unique index on brands and in the search vector.
+- **Reason:** `unaccent()` is only STABLE, so PostgreSQL refuses it in index expressions.
+- **Alternatives:** A generated, unaccented name column.
+
+### D8. Search vector maintained by a trigger
+
+- **Decision:** `products.search_vector` is computed by a BEFORE INSERT/UPDATE trigger: name and model/part numbers (weight A); model name, aliases and brand name plus brand aliases (weight B). It uses the `simple` configuration with unaccent. Renaming a brand refreshes its products.
+- **Reason:** A generated column cannot read the brand's name from another table. `simple` avoids language-specific stemming for a global catalogue.
+- **Alternatives:** A denormalized `brand_name` column with a generated tsvector.
+
+### D9. Region codes are two letters
+
+- **Decision:** `product_variants.region_code` uses `^[A-Z]{2}$` (ISO alpha-2, plus ISO-reserved region codes such as `EU`); NULL means global.
+- **Reason:** Simple, consistent with country codes, and covers the spec's `EU` example.
+- **Alternatives:** A region table (worth it only if regions like `APAC` are needed; that would be a later migration).
+
+### D10. Natural keys added for idempotent seed and imports
+
+- **Decision:** Additional unique constraints: `product_variants (product_id, variant_code)`; `retailer_offers (retailer_id, product_id, variant_id, market_country_code, condition)` with NULLS NOT DISTINCT; `featured_comparisons.title`; `lower(sources.source_name)`; `product_source_records (product_id, variant_id, source_id)`; `product_links (product_id, link_type, url)`.
+- **Reason:** Upserts need a natural key; these also stop accidental duplicates.
+- **Alternatives:** Look-then-insert in application code (race-prone).
+
+### D11. Seed upserts only rewrite changed rows; offer times are anchored to the hour
+
+- **Decision:** The seed uses `INSERT … ON CONFLICT DO UPDATE … WHERE (cols) IS DISTINCT FROM (excluded cols)`. Offer `last_checked_at` and `expires_at` are relative to the start of the current UTC hour. Verification timestamps are fixed. `price_history` is written only when an offer is new or its price/currency changed.
+- **Reason:** "Running twice changes nothing" — no new rows and no `updated_at` churn — while fresh, stale and expired offers stay testable as time passes. A re-seed in a later hour refreshes offer check times (and nothing else).
+- **Alternatives:** Fixed absolute offer times (fresh offers would go stale permanently); `DO NOTHING` (seed data fixes would never apply).
+
+### D12. The seed writes rows directly; it does not call the services
+
+- **Decision:** The seed validates every record with the same Zod schemas and `parseSpecificationValue()` that the services use, then upserts directly.
+- **Reason:** Going through the services would write an audit-log row on every run, which breaks idempotency. Audit logs are for human/admin changes.
+- **Alternatives:** Services with a "no audit" flag (a flag that could be misused).
+
+### D13. Partial updates keep only provided keys (`onlyProvided`)
+
+- **Decision:** Update services parse with `schema.partial()`, then keep only the keys present in the input.
+- **Reason:** In Zod 4, `.default()` inside `.partial()` still fills omitted fields, which would silently reset `isActive`, `aliases`, etc. Covered by tests.
+- **Alternatives:** Separate update schemas without defaults (duplication).
+
+### D14. Unit registry semantics
+
+- **Decision:** Storage is decimal SI (1 TB = 1000 GB); binary units (GiB, TiB) are accepted with their exact factor. A bare number is taken to be in the canonical unit. Results are rounded to 12 significant digits to remove float noise. Number parsing accepts `5 000`, `5,000`, `1,39` and `1.234,5`. `mW`/`MW` both mean milliwatt (megawatts are not a hardware unit). Values are stored as `numeric`.
+- **Reason:** Spec §5.2; predictable conversions for imports.
+- **Alternatives:** A units library (heavier; most don't cover mAh, nits, MP or bit-width).
+
+### D15. Spec-key uniqueness is enforced in the service, over ancestors and descendants
+
+- **Decision:** Creating a definition (or group) checks the key against the whole chain: ancestors, the category itself and all descendants. Re-parenting a category checks that keys in the moved subtree don't clash with the new ancestors.
+- **Reason:** Spec §5.2 ("unique within a category's full inheritance chain"). A per-category unique constraint is the database backstop.
+- **Alternatives:** A trigger (harder to give clear errors).
+
+### D16. Verified values are protected even against equal-confidence imports
+
+- **Decision:** `setSpecificationValue()` never overwrites a `verified` value with anything that isn't explicitly verified by a human. It creates a `conflicting_value` review item instead. `ai_extracted` values are forced to `unverified` and always queued as `unverified_spec`.
+- **Reason:** Rules 2.1.7 and 2.1.8.
+- **Alternatives:** Confidence thresholds (a human still has to decide).
+
+### D17. Cascades
+
+- **Decision:** Product-owned rows (variants, specs, images, links, source records, relationships, offers, price history, clicks, guide links) cascade on product delete. Brand, category and retailer references are `RESTRICT`.
+- **Reason:** Hard delete is only allowed for drafts (§5.2), and removing a draft should remove what hangs off it. Shared reference data must never disappear by accident.
+- **Alternatives:** Restrict everything (drafts with offers couldn't be deleted).
+
+### D18. Local verification on native PostgreSQL 16
+
+- **Decision:** `docker-compose.yml` provides `postgres:16-alpine` for development. In the build session, Docker Hub rate-limited the image pull (HTTP 429), so migrations, integration tests and e2e ran on a native PostgreSQL 16.15 install with the same role and databases.
+- **Reason:** It is real PostgreSQL 16; no substitutes were used (§0.4).
+- **Alternatives:** —
+
+### D19. Header shows only implemented navigation
+
+- **Decision:** In Stages 1–2 the header has the wordmark and the theme toggle only. Categories, Brands, Compare, Guides, search and the market selector arrive in Stage 3 with their routes. The homepage hero shows live catalogue counts from the database.
+- **Reason:** Rule 2.3.1 forbids links that look functional but lead nowhere; rule 2.3.2 forbids faked sections.
+- **Alternatives:** "Coming soon" labels (unnecessary noise on a page this small).
+
+### D20. `SITE_URL` defaults to localhost
+
+- **Decision:** `SITE_URL` is optional with a localhost default, even with `NODE_ENV=production`.
+- **Reason:** `next build`/`next start` always run as production, including local and e2e builds. Deployments must set it (documented).
+- **Alternatives:** Fail when unset in production (broke local production builds).
+
+### D21. e2e runs against a production build on the seeded test database
+
+- **Decision:** Playwright's global setup resets, migrates and seeds `TEST_DATABASE_URL`; `webServer` runs `pnpm build && pnpm start` with that database. Two projects: desktop (1440×900) and mobile (Pixel 7). `@playwright/test` is pinned to 1.63.0 to match the preinstalled Chromium.
+- **Reason:** Spec §17 ("against a seeded test database"; desktop + one mobile viewport).
+- **Alternatives:** Running against `next dev` (slower and less representative).
+
+### D22. Design handoff kept in `design/`
+
+- **Decision:** The Claude Design export (board, design-system CSS, chat transcript) lives in `design/`, excluded from TypeScript, lint and formatting.
+- **Reason:** Reference for later stages (cards, PDP, offers table are already drawn there).
+- **Alternatives:** Discard it.

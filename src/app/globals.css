@@ -1,0 +1,254 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/* Class-strategy dark mode (next-themes sets .dark on <html>). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Specbase design tokens — direction 1a "Drafting Sheet" (Industry system).
+ * Cool grey ground, one steel accent, square hairline frames with registration marks.
+ * Values come from the Round 1 board; accent text steps to #416180 (accent-700) in light mode
+ * because the 500 base misses 4.5:1 on the grey ground. Dark mode uses the 400 step.
+ */
+:root {
+  --background: #f2f2f3;
+  --foreground: #1d1f20;
+  --card: #f2f2f3;
+  --card-foreground: #1d1f20;
+  --popover: #f2f2f3;
+  --popover-foreground: #1d1f20;
+  --muted: #e9e9ea;
+  --muted-foreground: #5d5d60;
+  --primary: #416180;
+  --primary-hover: #2c455d;
+  --primary-active: #1d2d3d;
+  --primary-foreground: #f2f2f3;
+  --secondary: #e9e9ea;
+  --secondary-foreground: #1d1f20;
+  --accent: rgba(29, 31, 32, 0.07);
+  --accent-foreground: #1d1f20;
+  --border: rgba(29, 31, 32, 0.16);
+  --border-strong: #1d1f20;
+  --input: rgba(29, 31, 32, 0.24);
+  --ring: #5980a6;
+  --destructive: #8f3f37;
+  --destructive-foreground: #f2f2f3;
+  --success: #3f6f52;
+  --warning: #7a5c24;
+  --verified: #1d2d3d;
+  --stale: #7a5c24;
+  --placeholder-line: rgba(29, 31, 32, 0.08);
+  --mark: rgba(29, 31, 32, 0.55);
+  --grid-line: rgba(29, 31, 32, 0.05);
+  --radius: 0px;
+}
+
+.dark {
+  --background: #1d1f20;
+  --foreground: #f2f2f3;
+  --card: #1d1f20;
+  --card-foreground: #f2f2f3;
+  --popover: #2b2b2d;
+  --popover-foreground: #f2f2f3;
+  --muted: #2b2b2d;
+  --muted-foreground: #b7b7ba;
+  --primary: #94bce3;
+  --primary-hover: #b5d9fd;
+  --primary-active: #d6ebff;
+  --primary-foreground: #1d1f20;
+  --secondary: #2b2b2d;
+  --secondary-foreground: #f2f2f3;
+  --accent: rgba(242, 242, 243, 0.08);
+  --accent-foreground: #f2f2f3;
+  --border: rgba(242, 242, 243, 0.18);
+  --border-strong: #f2f2f3;
+  --input: rgba(242, 242, 243, 0.26);
+  --ring: #b5d9fd;
+  --destructive: #e0a39b;
+  --destructive-foreground: #1d1f20;
+  --success: #8cc4a0;
+  --warning: #d9b878;
+  --verified: #b5d9fd;
+  --stale: #d9b878;
+  --placeholder-line: rgba(242, 242, 243, 0.08);
+  --mark: rgba(242, 242, 243, 0.55);
+  --grid-line: rgba(242, 242, 243, 0.05);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-active: var(--primary-active);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-verified: var(--verified);
+  --color-stale: var(--stale);
+  --color-grid-line: var(--grid-line);
+
+  --font-sans: "Barlow", ui-sans-serif, system-ui, sans-serif;
+  --font-heading: "Barlow Condensed", "Barlow", ui-sans-serif, system-ui, sans-serif;
+
+  --radius-sm: var(--radius);
+  --radius-md: var(--radius);
+  --radius-lg: var(--radius);
+  --radius-xl: var(--radius);
+
+  /* Type scale (px): 11 · 12 · 13 · 14 · 15 · 18 · 22 · 28 · 40 · 60 · 76 */
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1.35;
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+  html {
+    color-scheme: light;
+  }
+  html.dark {
+    color-scheme: dark;
+  }
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.55;
+    /* Spec values and prices align in columns everywhere. */
+    font-variant-numeric: tabular-nums;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-heading);
+    font-weight: 600;
+    line-height: 1.05;
+    letter-spacing: -0.015em;
+  }
+  a {
+    text-underline-offset: 3px;
+  }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+  ::selection {
+    background: color-mix(in srgb, var(--primary) 30%, transparent);
+  }
+}
+
+@layer components {
+  /* Blueprint frame: hairline border + four "+" registration marks (Industry system). */
+  .blueprint {
+    position: relative;
+    border: 1px solid var(--color-border);
+  }
+  .blueprint > .corner {
+    position: absolute;
+    width: 11px;
+    height: 11px;
+    color: var(--mark);
+    pointer-events: none;
+  }
+  .blueprint > .corner::before,
+  .blueprint > .corner::after {
+    content: "";
+    position: absolute;
+    background: currentColor;
+  }
+  .blueprint > .corner::before {
+    left: 5px;
+    top: 0;
+    width: 1px;
+    height: 100%;
+  }
+  .blueprint > .corner::after {
+    top: 5px;
+    left: 0;
+    width: 100%;
+    height: 1px;
+  }
+  .blueprint > .corner.tl {
+    top: -6px;
+    left: -6px;
+  }
+  .blueprint > .corner.tr {
+    top: -6px;
+    right: -6px;
+  }
+  .blueprint > .corner.bl {
+    bottom: -6px;
+    left: -6px;
+  }
+  .blueprint > .corner.br {
+    bottom: -6px;
+    right: -6px;
+  }
+
+  /* Condensed caps label used for kickers, model numbers and table headers. */
+  .label-caps {
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted-foreground);
+  }
+  .model-number {
+    font-family: var(--font-heading);
+    font-weight: 500;
+    letter-spacing: 0.08em;
+  }
+
+  /* Placeholder surface for products without a licensed image: crossed hairlines on muted. */
+  .image-placeholder {
+    background-color: var(--muted);
+    background-image:
+      linear-gradient(
+        to top right,
+        transparent calc(50% - 0.5px),
+        var(--placeholder-line) 50%,
+        transparent calc(50% + 0.5px)
+      ),
+      linear-gradient(
+        to top left,
+        transparent calc(50% - 0.5px),
+        var(--placeholder-line) 50%,
+        transparent calc(50% + 0.5px)
+      );
+  }
+
+  /* 12-column drafting grid behind hero sections. */
+  .drafting-grid {
+    background-image: linear-gradient(to right, var(--grid-line) 1px, transparent 1px);
+    background-size: calc(100% / 12) 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

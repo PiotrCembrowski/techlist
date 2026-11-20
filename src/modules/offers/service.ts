@@ -30,7 +30,7 @@ export const moneySchema = z
 
 const positiveMoney = moneySchema.refine((s) => Number(s) > 0, "Price must be greater than 0");
 
-const offerBaseSchema = z.object({
+export const offerBaseSchema = z.object({
   productId: z.uuid(),
   variantId: z
     .uuid()

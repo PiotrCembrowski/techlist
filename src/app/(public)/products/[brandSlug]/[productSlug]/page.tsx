@@ -362,6 +362,12 @@ export default async function ProductPage(props: Props) {
                 How we verify data
               </Link>
             </p>
+            <Link
+              href={`${base}/suggest-correction`}
+              className="w-fit border px-3 py-2 text-sm font-medium hover:bg-accent"
+            >
+              Suggest a correction
+            </Link>
           </section>
 
           {d.links.length ? (

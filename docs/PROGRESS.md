@@ -10,13 +10,48 @@
 | 4 Comparison              | Tray (localStorage), picker, `compareProducts()`, canonical `-vs-` URLs (301), responsive table. Journey B                                                                                                                                                                                        | **Done** |
 | 5 Offers & affiliate      | Fresh/stale/expired rules, market grouping, `/go/[offerId]` with host allowlist, clicks, price-history writes. Journey C                                                                                                                                                                          | **Done** |
 | 6A Admin core             | Auth.js credentials + argon2id, `admin:create`, Postgres rate limiter, role checks in every action, CRUD, audit log. Journey D                                                                                                                                                                    | **Done** |
-| 6B Imports & verification | CSV stage/validate/preview/commit, duplicate detection, error report, export with formula-injection guard, review queue, correction form. Journey E                                                                                                                                               | Next     |
-| 7 SEO & quality           | Metadata, JSON-LD, indexability function, sitemap/robots, slug 301s, axe, security headers/CSP                                                                                                                                                                                                    | —        |
+| 6B Imports & verification | CSV stage/validate/preview/commit, duplicate detection, error report, export with formula-injection guard, review queue, correction form. Journey E                                                                                                                                               | **Done** |
+| 7 SEO & quality           | Metadata, JSON-LD, indexability function, sitemap/robots, slug 301s, axe, security headers/CSP                                                                                                                                                                                                    | Next     |
 | 8 Final                   | Full suite, mobile e2e, all docs, acceptance checklist                                                                                                                                                                                                                                            | —        |
 
 Order of work inside each stage: schema/service → tests → UI → e2e journey → gate.
 
 ---
+
+## Stage 6B — gate run 2026-11-20
+
+### Done and verified
+
+| Check                                                                       | Command                                                                                                 | Result                                                                                      |
+| --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Typecheck / lint / formatting                                               | `pnpm typecheck`, `pnpm lint`, `pnpm format:check`                                                      | pass                                                                                        |
+| Unit tests                                                                  | `pnpm test:unit`                                                                                        | 126 passed                                                                                  |
+| Integration tests (real PostgreSQL 16.15)                                   | `pnpm test:integration`                                                                                 | 135 passed                                                                                  |
+| E2E — Journeys A–E + correction + catalogue + smoke; desktop **and** mobile | `pnpm e2e`                                                                                              | 60 passed                                                                                   |
+| Migrations from scratch + seed ×3                                           | `pnpm db:migrate:fresh && pnpm db:seed` ×3                                                              | runs 2–3: no changes; no schema changes this stage (`pnpm db:generate`: nothing to migrate) |
+| Visual check                                                                | imports page, import result, review queue, correction review, data providers, correction form at 390 px | 1a styling; no overflow                                                                     |
+
+Built and covered by tests:
+
+- **CSV import** (products and offers): upload checks (.csv, UTF-8, NUL bytes, 5 MB, 10,000 rows, headers), permitted source required, 20 uploads/hour per admin, auto-mapping with manual override, Zod validation per row, bulk reference resolution, duplicate detection in SPEC order (GTIN → brand + MPN → brand + model number → similarity ≥ 0.6 → review item, never merged), regional variants never merged, preview by action, batched commit with per-row savepoints, verified values protected (conflicting-value review items, not duplicated on re-import), new imported products queued for review, results and error report CSV.
+- **Idempotency:** re-importing the sample creates zero records (integration and Journey E); exporting laptops, smartphones, gaming laptops, headphones and all offers and re-importing changes nothing; an offer price change updates the offer and appends one price-history row.
+- **Export:** products by category (one row per variant, effective values with units) and offers, in the import format, with the formula-injection guard; header-only templates per category.
+- **Review queue:** list by status/type with counts, detail per type, approve / edit-then-approve / reject with note; effects per type (D60) tested for every type, including "same product" / "different product" and "separate variant" decisions that later re-imports respect.
+- **Public corrections:** "Suggest a correction" on every product page; validation, honeypot, 5/hour per address, published products only; email removed once resolved; privacy notice updated.
+- **Data providers:** interface, CSV adapter, three stubs (no network, "Not configured" without settings), admin status page, `docs/DATA_SOURCES.md`.
+- **Authorization:** the admin auth test now also discovers every admin route handler (CSV downloads) and asserts anonymous requests are redirected; Journey D checks the new admin pages and downloads.
+- **Journey E** (desktop + mobile): upload the sample → preview (2 create, 2 errors shown per row, 1 duplicate) → commit → download error report → upload again → 0 created, 2 skipped, table counts unchanged; then the duplicate is rejected in the review queue.
+- **Fix:** rate-limiter pruning relative to the limiter's clock (D63), the cause of the earlier intermittent test failure.
+
+### Done but not verified
+
+- Large imports at the 10,000-row limit: the design is bulk-query based (D55) but was only run with small files here; timing on real data is unmeasured.
+- Docker Compose database — still blocked by the Docker Hub rate limit in this environment.
+
+### Deferred
+
+- Client addresses come from `X-Forwarded-For`; that is only trustworthy behind a proxy that sets it. To review in the Stage 7 security pass (document the proxy requirement or add a setting).
+- Import progress for very large files (commits run inside the request) → later, if measured imports are slow.
 
 ## Stage 6A — gate run 2026-11-20
 
@@ -47,7 +82,7 @@ Built and covered by tests:
 
 ### Deferred
 
-- Review queue screens, CSV import/export, correction form → **Stage 6B**.
+- Review queue screens, CSV import/export, correction form → **Stage 6B** (done).
 - Image resizing/thumbnails (originals are served, ≤ 5 MB) → later, if measured page weight needs it.
 - One intermittent integration failure seen once during the gate and not reproduced in 12 later runs. The likely cause (the rate-limit test's fixed past clock colliding with the limiter's random pruning) is fixed.
 

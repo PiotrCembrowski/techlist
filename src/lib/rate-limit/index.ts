@@ -31,8 +31,10 @@ export class PostgresRateLimiter implements RateLimiter {
       ON CONFLICT (key, window_start) DO UPDATE SET count = rate_limits.count + 1
       RETURNING count`);
     if (Math.random() < 0.01) {
+      // Relative to this limiter's clock, so pruning never removes the window being counted.
+      const cutoff = new Date(nowMs - 24 * 60 * 60 * 1000).toISOString();
       await this.db.execute(
-        sql`DELETE FROM rate_limits WHERE window_start < now() - interval '1 day'`,
+        sql`DELETE FROM rate_limits WHERE window_start < ${cutoff}::timestamptz`,
       );
     }
     const count = Number(row?.count ?? 1);

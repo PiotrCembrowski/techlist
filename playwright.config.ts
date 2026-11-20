@@ -13,26 +13,31 @@ export default defineConfig({
   // Resets, migrates and seeds the TEST database before the server starts serving.
   globalSetup: "./tests/e2e/global-setup.ts",
   use: { baseURL: `http://localhost:${PORT}`, trace: "off" },
-  // Admin specs write to the catalogue (Journey D publishes a product), so they run after the
+  // Admin specs write to the catalogue (Journeys D and E create products), so they run after the
   // public specs, which assert exact counts on the seeded data.
   projects: [
     {
       name: "desktop",
-      testIgnore: /journey-d\.spec\.ts/,
+      testIgnore: /journey-[de]\.spec\.ts/,
       use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } },
     },
-    { name: "mobile", testIgnore: /journey-d\.spec\.ts/, use: { ...devices["Pixel 7"] } },
+    { name: "mobile", testIgnore: /journey-[de]\.spec\.ts/, use: { ...devices["Pixel 7"] } },
     {
       name: "admin-desktop",
-      testMatch: /journey-d\.spec\.ts/,
+      testMatch: /journey-[de]\.spec\.ts/,
       dependencies: ["desktop", "mobile"],
-      use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } },
+      // Separate login rate-limit buckets per project (the limiter keys on address + email).
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 1440, height: 900 },
+        extraHTTPHeaders: { "x-forwarded-for": "192.0.2.10" },
+      },
     },
     {
       name: "admin-mobile",
-      testMatch: /journey-d\.spec\.ts/,
+      testMatch: /journey-[de]\.spec\.ts/,
       dependencies: ["desktop", "mobile"],
-      use: { ...devices["Pixel 7"] },
+      use: { ...devices["Pixel 7"], extraHTTPHeaders: { "x-forwarded-for": "192.0.2.11" } },
     },
   ],
   webServer: {

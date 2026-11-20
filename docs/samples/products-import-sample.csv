@@ -1,0 +1,6 @@
+brand,category_slug,product_name,model_number,mpn,product_status,release_date,variant_name,variant_code,region_code,color,memory,storage,gtin,source_name,source_url,is_demo,spec.processor,spec.ram,spec.storage,spec.screen_size
+Novik,laptops,Kestrel 14,NK14-2609,,announced,2026-09-01,16 GB · 512 GB,16-512,EU,Slate grey,16 GB,512 GB,2009000000018,Specbase demonstration research,,true,Kestrel K5,16 GB,512 GB,14 in
+Novik,laptops,Kestrel 14,NK14-2609,,announced,2026-09-01,32 GB · 1 TB,32-1tb,EU,Slate grey,32 GB,1 TB,2009000000025,Specbase demonstration research,,true,Kestrel K5,32 GB,1 TB,14 in
+Vexmoor,laptops,Driftbook 13,VX-DB13,,announced,2026-10-01,,,,,,,,,,true,,8 GB,,13.3 in
+Novik,laptops,Kestrel 16,NK16-2609,,announced,2026-02-30,,,,,,,,,,true,Kestrel K7,lots,1 TB,16 in
+Novik,smartphones,Aera 7 Pro Max,,,announced,,,,,,,,,,,true,,,,

@@ -1,5 +1,6 @@
 import { sql, type SQL } from "drizzle-orm";
 import type { DbOrTx } from "@/lib/db";
+import { getPrimaryImages, type PublicImage } from "@/modules/media/public";
 import { formatSpecValue } from "@/lib/format";
 import { MAX_PAGE_SIZE } from "@/modules/_shared/context";
 import { freshOfferSql, getLowestFreshOffers, type LowestOffer } from "@/modules/offers/read";
@@ -46,6 +47,7 @@ export interface ProductCardData {
   topCategory: { slug: string; name: string };
   keySpecs: { key: string; label: string; value: string }[];
   offer: LowestOffer | null;
+  image: PublicImage | null;
 }
 
 export function productHref(brandSlug: string, productSlug: string, variantCode?: string | null) {
@@ -212,10 +214,11 @@ async function toCards(db: DbOrTx, rows: Row[], opts: CatalogOptions): Promise<P
     ]),
   );
   const allDefIds = [...new Set([...cardDefs.values()].flat().map((d) => d.id))];
-  const [specs, offers, topOf] = await Promise.all([
+  const [specs, offers, topOf, images] = await Promise.all([
     getSpecificationsForProducts(db, ids, allDefIds),
     getLowestFreshOffers(db, ids, opts.market, opts.staleHours),
     getTopCategoryMap(db),
+    getPrimaryImages(db, ids),
   ]);
 
   return rows.map((r) => {
@@ -243,6 +246,7 @@ async function toCards(db: DbOrTx, rows: Row[], opts: CatalogOptions): Promise<P
       topCategory: topOf.get(r.category_id) ?? { slug: r.category_slug, name: r.category_name },
       keySpecs,
       offer: offers.get(r.id) ?? null,
+      image: images.get(r.id) ?? null,
     };
   });
 }

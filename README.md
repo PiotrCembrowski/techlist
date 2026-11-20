@@ -49,17 +49,21 @@ CREATE DATABASE specbase_test OWNER specbase;
 
 Validated with Zod at startup (`src/config/env.ts`); see `.env.example`.
 
-| Variable                     | Required       | Default                 | Purpose                                                               |
-| ---------------------------- | -------------- | ----------------------- | --------------------------------------------------------------------- |
-| `DATABASE_URL`               | yes            | —                       | PostgreSQL connection string                                          |
-| `TEST_DATABASE_URL`          | for tests      | —                       | Separate database. **Its schema is dropped** by integration/e2e setup |
-| `SITE_URL`                   | in deployments | `http://localhost:3000` | Canonical origin for metadata                                         |
-| `ENABLE_DEMO_DATA`           | no             | `false`                 | Shows the site-wide demo banner; demo offers may redirect             |
-| `ALLOW_DEMO_SEED`            | no             | `false`                 | Required to seed demo data with `NODE_ENV=production`                 |
-| `SUSPICIOUS_PRICE_DEVIATION` | no             | `0.5`                   | Offer prices further than this from the median create a review item   |
-| `OFFER_STALE_HOURS`          | no             | `72`                    | Offers last checked longer ago are shown as stale                     |
-| `DB_POOL_MAX`                | no             | `10`                    | Connection pool size                                                  |
-| `AUTH_SECRET`                | from Stage 6A  | —                       | Auth.js secret (≥ 32 chars)                                           |
+| Variable                                    | Required       | Default                 | Purpose                                                               |
+| ------------------------------------------- | -------------- | ----------------------- | --------------------------------------------------------------------- |
+| `DATABASE_URL`                              | yes            | —                       | PostgreSQL connection string                                          |
+| `TEST_DATABASE_URL`                         | for tests      | —                       | Separate database. **Its schema is dropped** by integration/e2e setup |
+| `SITE_URL`                                  | in deployments | `http://localhost:3000` | Canonical origin for metadata                                         |
+| `ENABLE_DEMO_DATA`                          | no             | `false`                 | Shows the site-wide demo banner; demo offers may redirect             |
+| `ALLOW_DEMO_SEED`                           | no             | `false`                 | Required to seed demo data with `NODE_ENV=production`                 |
+| `SUSPICIOUS_PRICE_DEVIATION`                | no             | `0.5`                   | Offer prices further than this from the median create a review item   |
+| `OFFER_STALE_HOURS`                         | no             | `72`                    | Offers last checked longer ago are shown as stale                     |
+| `DB_POOL_MAX`                               | no             | `10`                    | Connection pool size                                                  |
+| `AUTH_SECRET`                               | **yes**        | —                       | Auth.js secret, ≥ 32 chars (`openssl rand -base64 32`). Never commit  |
+| `STORAGE_DRIVER`                            | no             | `local`                 | `local` or `s3` (any S3-compatible service) for uploaded images       |
+| `STORAGE_LOCAL_DIR`                         | no             | `storage/uploads`       | Upload directory for the local driver (git-ignored)                   |
+| `S3_BUCKET` / `S3_REGION`                   | with `s3`      | —                       | Bucket and region; `S3_ENDPOINT` for R2/MinIO                         |
+| `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` | no             | —                       | Omit to use the SDK's default credential chain                        |
 
 ## Database
 
@@ -80,7 +84,21 @@ Running it again changes nothing. It never creates admin users.
 
 ## Creating the first admin
 
-`pnpm admin:create` arrives in Stage 6A. There is no default password and no public registration.
+```bash
+pnpm admin:create --email you@example.com --name "Your Name"
+```
+
+You are asked for the password twice (hidden input, at least 12 characters); it can also be piped
+on stdin. The first account is always an `owner`; later ones default to `editor`
+(`--role owner` to override). There is no default password and no public registration. Owners
+manage further users at `/admin/users`.
+
+## Admin
+
+Sign in at `/admin/login`. Editors manage products, variants, specifications, images, brands,
+categories and specification definitions, retailers, offers and sources. Owners also manage
+users. Every change is written to the audit log (`/admin/audit`) in the same transaction.
+Sign-in is limited to 5 attempts per 15 minutes per address and email.
 
 ## Tests
 

@@ -13,18 +13,39 @@ export default defineConfig({
   // Resets, migrates and seeds the TEST database before the server starts serving.
   globalSetup: "./tests/e2e/global-setup.ts",
   use: { baseURL: `http://localhost:${PORT}`, trace: "off" },
+  // Admin specs write to the catalogue (Journey D publishes a product), so they run after the
+  // public specs, which assert exact counts on the seeded data.
   projects: [
     {
       name: "desktop",
+      testIgnore: /journey-d\.spec\.ts/,
       use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } },
     },
-    { name: "mobile", use: { ...devices["Pixel 7"] } },
+    { name: "mobile", testIgnore: /journey-d\.spec\.ts/, use: { ...devices["Pixel 7"] } },
+    {
+      name: "admin-desktop",
+      testMatch: /journey-d\.spec\.ts/,
+      dependencies: ["desktop", "mobile"],
+      use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } },
+    },
+    {
+      name: "admin-mobile",
+      testMatch: /journey-d\.spec\.ts/,
+      dependencies: ["desktop", "mobile"],
+      use: { ...devices["Pixel 7"] },
+    },
   ],
   webServer: {
     command: `pnpm build && pnpm start -p ${PORT}`,
     url: `http://localhost:${PORT}/api/health`,
     reuseExistingServer: !process.env.CI,
     timeout: 240_000,
-    env: { DATABASE_URL: testDb ?? "", ENABLE_DEMO_DATA: "true", NODE_ENV: "production" },
+    env: {
+      DATABASE_URL: testDb ?? "",
+      ENABLE_DEMO_DATA: "true",
+      NODE_ENV: "production",
+      AUTH_SECRET: process.env.AUTH_SECRET ?? "e2e-test-secret-not-for-production-use-0000",
+      STORAGE_LOCAL_DIR: "storage/e2e-uploads",
+    },
   },
 });

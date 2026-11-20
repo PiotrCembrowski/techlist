@@ -6,10 +6,6 @@ import "@fontsource/barlow-condensed/600.css";
 import "./globals.css";
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
-import { CompareTray } from "@/components/compare/compare-tray";
-import { DemoBanner } from "@/components/layout/demo-banner";
-import { SiteFooter } from "@/components/layout/site-footer";
-import { SiteHeader } from "@/components/layout/site-header";
 import { ThemeProvider } from "@/components/layout/theme-provider";
 import { getEnv } from "@/config/env";
 import { siteConfig } from "@/config/site";
@@ -36,25 +32,10 @@ export const viewport: Viewport = {
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
-  const demo = getEnv().ENABLE_DEMO_DATA;
   return (
     <html lang="en" suppressHydrationWarning>
       <body className="flex min-h-dvh flex-col">
-        <ThemeProvider>
-          <a
-            href="#main"
-            className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:bg-background focus:px-3 focus:py-2"
-          >
-            Skip to content
-          </a>
-          {demo ? <DemoBanner /> : null}
-          <SiteHeader />
-          <main id="main" className="flex flex-1 flex-col">
-            {children}
-          </main>
-          <SiteFooter demo={demo} />
-          <CompareTray />
-        </ThemeProvider>
+        <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>
   );

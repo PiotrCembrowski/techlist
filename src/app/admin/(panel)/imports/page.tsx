@@ -55,6 +55,11 @@ export default async function ImportsPage({
             the columns and see a preview before anything changes. Imported values are unverified;
             verified values are never overwritten (a review item is created instead).
           </p>
+          <p className="text-sm text-muted-foreground">
+            Creating new products is slow (about 20 rows per second): split files with thousands of
+            new products into files of about 1,000 rows. An interrupted commit can be started again
+            after 15 minutes; rows already applied are skipped.
+          </p>
           <ActionForm action={uploadImportAction} aria-label="New import">
             <FieldGrid>
               <SelectField name="importType" label="Type" options={TYPES} defaultValue="products" />

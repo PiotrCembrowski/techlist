@@ -15,6 +15,7 @@ import { parseCsv, writeCsv } from "@/lib/csv";
 import { closeDb } from "@/lib/db";
 import { exportOffersCsv, exportProductsCsv, productsTemplateCsv } from "@/modules/imports/export";
 import {
+  cancelImportJob,
   commitImportJob,
   countImportRows,
   createImportJob,
@@ -335,6 +336,31 @@ describe("protection rules", () => {
     await expect(
       setImportMapping(ctx(), job.id, { Marke: "brand", Kategorie: "brand", Name: "product_name" }),
     ).rejects.toThrow(/mapped twice/);
+  });
+
+  it("an abandoned commit (no progress for 15 minutes) can be resumed or cancelled; a live one cannot", async () => {
+    const csv = writeCsv([
+      ["brand", "category_slug", "product_name", "model_number", "is_demo"],
+      ["Novik", "headphones", "Resume Test 1", "NK-RT1", "true"],
+    ]);
+    const job = await createImportJob(ctx(), {
+      importType: "products",
+      sourceId,
+      file: csvFile(csv),
+    });
+    await validateImportJob(ctx(), job.id);
+    // A commit that is still making progress.
+    await db().execute(
+      sql`UPDATE import_jobs SET started_at = now() - interval '1 minute' WHERE id = ${job.id}`,
+    );
+    await expect(commitImportJob(ctx(), job.id)).rejects.toThrow(/already being committed/);
+    await expect(cancelImportJob(ctx(), job.id)).rejects.toThrow(/being committed/);
+    // The request died 20 minutes ago: the commit can be taken over and finishes.
+    await db().execute(
+      sql`UPDATE import_jobs SET started_at = now() - interval '20 minutes' WHERE id = ${job.id}`,
+    );
+    const result = await commitImportJob(ctx(), job.id);
+    expect(result.created).toBe(1);
   });
 
   it("cannot commit twice", async () => {

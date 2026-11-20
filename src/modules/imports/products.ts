@@ -199,7 +199,9 @@ export function parseProductRow(mapped: Record<string, string>): {
 // ─── Bulk reference lookups ────────────────────────────────────────────────────────────
 
 const uniq = <T>(xs: T[]) => [...new Set(xs)];
-const arr = <T>(xs: T[], type: string) => sql`${sql.param(xs)}::${sql.raw(type)}[]`;
+// `type` is one of a fixed set of SQL type names (never user input).
+const arr = <T>(xs: T[], type: "text" | "uuid" | "int") =>
+  sql`${sql.param(xs)}::${sql.raw(type)}[]`;
 
 /** A reviewer's decision on an import row (stored in the review item's payload). */
 export interface Resolution {

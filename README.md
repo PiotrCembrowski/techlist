@@ -49,22 +49,23 @@ CREATE DATABASE specbase_test OWNER specbase;
 
 Validated with Zod at startup (`src/config/env.ts`); see `.env.example`.
 
-| Variable                                                        | Required       | Default                 | Purpose                                                                   |
-| --------------------------------------------------------------- | -------------- | ----------------------- | ------------------------------------------------------------------------- |
-| `DATABASE_URL`                                                  | yes            | —                       | PostgreSQL connection string                                              |
-| `TEST_DATABASE_URL`                                             | for tests      | —                       | Separate database. **Its schema is dropped** by integration/e2e setup     |
-| `SITE_URL`                                                      | in deployments | `http://localhost:3000` | Canonical origin for metadata                                             |
-| `ENABLE_DEMO_DATA`                                              | no             | `false`                 | Shows the site-wide demo banner; demo offers may redirect                 |
-| `ALLOW_DEMO_SEED`                                               | no             | `false`                 | Required to seed demo data with `NODE_ENV=production`                     |
-| `SUSPICIOUS_PRICE_DEVIATION`                                    | no             | `0.5`                   | Offer prices further than this from the median create a review item       |
-| `OFFER_STALE_HOURS`                                             | no             | `72`                    | Offers last checked longer ago are shown as stale                         |
-| `DB_POOL_MAX`                                                   | no             | `10`                    | Connection pool size                                                      |
-| `AUTH_SECRET`                                                   | **yes**        | —                       | Auth.js secret, ≥ 32 chars (`openssl rand -base64 32`). Never commit      |
-| `STORAGE_DRIVER`                                                | no             | `local`                 | `local` or `s3` (any S3-compatible service) for uploaded images           |
-| `STORAGE_LOCAL_DIR`                                             | no             | `storage/uploads`       | Upload directory for the local driver (git-ignored)                       |
-| `S3_BUCKET` / `S3_REGION`                                       | with `s3`      | —                       | Bucket and region; `S3_ENDPOINT` for R2/MinIO                             |
-| `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY`                     | no             | —                       | Omit to use the SDK's default credential chain                            |
-| `MANUFACTURER_FILES_DIR`, `LICENSED_FEED_*`, `AFFILIATE_FEED_*` | no             | —                       | Data provider adapters; unset = "Not configured" (`docs/DATA_SOURCES.md`) |
+| Variable                                                        | Required       | Default                 | Purpose                                                                        |
+| --------------------------------------------------------------- | -------------- | ----------------------- | ------------------------------------------------------------------------------ |
+| `DATABASE_URL`                                                  | yes            | —                       | PostgreSQL connection string                                                   |
+| `TEST_DATABASE_URL`                                             | for tests      | —                       | Separate database. **Its schema is dropped** by integration/e2e setup          |
+| `SITE_URL`                                                      | in deployments | `http://localhost:3000` | Canonical origin for metadata                                                  |
+| `ENABLE_DEMO_DATA`                                              | no             | `false`                 | Shows the site-wide demo banner; demo offers may redirect                      |
+| `ALLOW_DEMO_SEED`                                               | no             | `false`                 | Required to seed demo data with `NODE_ENV=production`                          |
+| `SUSPICIOUS_PRICE_DEVIATION`                                    | no             | `0.5`                   | Offer prices further than this from the median create a review item            |
+| `OFFER_STALE_HOURS`                                             | no             | `72`                    | Offers last checked longer ago are shown as stale                              |
+| `DB_POOL_MAX`                                                   | no             | `10`                    | Connection pool size                                                           |
+| `AUTH_SECRET`                                                   | **yes**        | —                       | Auth.js secret, ≥ 32 chars (`openssl rand -base64 32`). Never commit           |
+| `STORAGE_DRIVER`                                                | no             | `local`                 | `local` or `s3` (any S3-compatible service) for uploaded images                |
+| `STORAGE_LOCAL_DIR`                                             | no             | `storage/uploads`       | Upload directory for the local driver (git-ignored)                            |
+| `S3_BUCKET` / `S3_REGION`                                       | with `s3`      | —                       | Bucket and region; `S3_ENDPOINT` for R2/MinIO                                  |
+| `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY`                     | no             | —                       | Omit to use the SDK's default credential chain                                 |
+| `TRUSTED_PROXY_HOPS`                                            | no             | `1`                     | Reverse proxies that append to `X-Forwarded-For` (rate limits); `0` ignores it |
+| `MANUFACTURER_FILES_DIR`, `LICENSED_FEED_*`, `AFFILIATE_FEED_*` | no             | —                       | Data provider adapters; unset = "Not configured" (`docs/DATA_SOURCES.md`)      |
 
 ## Database
 
@@ -119,7 +120,8 @@ Readers can suggest corrections from any product page (no account; rate limited;
 pnpm typecheck && pnpm lint
 pnpm test:unit               # pure logic: units, validation, spec parsing
 pnpm test:integration        # real PostgreSQL via TEST_DATABASE_URL (schema is reset first)
-pnpm e2e                     # builds, resets + seeds the test DB, runs desktop + mobile
+pnpm e2e                     # builds, resets + seeds the test DB, runs desktop + mobile (incl. axe)
+PERF_DATABASE_URL=postgres://…/specbase_perf pnpm perf:bench   # 20,000-product benchmark (docs/PERFORMANCE.md)
 ```
 
 ## Deployment (summary)

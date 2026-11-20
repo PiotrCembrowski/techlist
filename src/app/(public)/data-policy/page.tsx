@@ -1,12 +1,19 @@
 import { ShieldAlert, ShieldCheck, ShieldHalf } from "lucide-react";
 import type { Metadata } from "next";
+import { getIndexability } from "@/modules/seo/indexability";
+import { pageMetadata } from "@/modules/seo/metadata";
 import { StaticPage } from "@/components/content/static-page";
 import { NotAvailable } from "@/components/product/spec-table";
 
-export const metadata: Metadata = {
-  title: "Data & verification policy",
-  alternates: { canonical: "/data-policy" },
-};
+export function generateMetadata(): Metadata {
+  return pageMetadata({
+    title: "Data & verification policy",
+    description:
+      "Where our specification data comes from, how values are verified and how to correct them.",
+    path: "/data-policy",
+    indexability: getIndexability({ kind: "content" }),
+  });
+}
 
 export default function DataPolicyPage() {
   return (

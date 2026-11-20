@@ -138,7 +138,7 @@ One entry per non-obvious engineering decision: **decision**, **reason**, **alte
 
 ## 2026-11-19 — Stage 3
 
-### D23. Permanent redirects use 308, not 301
+### D23. Permanent redirects use 308, not 301 (superseded by D67)
 
 - **Decision:** Wrong brand slugs and renamed products/categories/brands/guides redirect with Next.js `permanentRedirect()`, which answers **308**.
 - **Reason:** 308 is the permanent redirect that preserves the request method; search engines treat it the same as 301. Producing a literal 301 from a page in Next.js 16 would need a proxy/middleware layer just for this.
@@ -185,7 +185,7 @@ One entry per non-obvious engineering decision: **decision**, **reason**, **alte
 - **Reason:** SPEC §13 rate-limits search suggestions, which ship in this stage. Stage 6A reuses it for login.
 - **Alternatives:** No limit until 6A.
 
-### D31. Pages render dynamically per request
+### D31. Pages render dynamically per request (see D70)
 
 - **Decision:** Public pages read the `market` cookie (header, cards), so they render per request. No ISR yet.
 - **Reason:** Correct market-specific prices first. ISR with on-demand revalidation (SPEC §14) needs a market-independent shell; that's a Stage 7 performance task.
@@ -360,3 +360,50 @@ One entry per non-obvious engineering decision: **decision**, **reason**, **alte
 
 - **Decision:** The 1 % chance cleanup deletes windows older than one day **relative to the limiter's own clock**, not the database's `now()`.
 - **Reason:** With an injected clock in the past, the cleanup could delete the window being counted. This caused the rare integration-test failure seen in Stage 6A; a regression test now forces the cleanup.
+
+## 2026-11-20 — Stage 7
+
+### D64. One indexability function, mirrored once in SQL
+
+- **Decision:** `getIndexability(page)` (`src/modules/seo/indexability.ts`) decides every page kind: product (published, not demo, active brand, `verified`/`partially_verified`, ≥ 60 % of the category's required specifications — inherited ones included — with a **product-level** value), category (active, unfiltered, ≥ 1 indexable product in its subtree), brand (active, not demo, ≥ 1 indexable product), comparison (canonical order and every product indexable), guide (published, not demo), listing (unfiltered, not empty), content pages (indexable) and utility pages (search, comparison picker, correction form, 404: `noindex, follow`). Demo and unpublished pages are also `nofollow`. The product rule is mirrored once in SQL (`sb_indexable_products()` + view `indexable_products`), used for the sitemap and the category/brand/comparison checks; an integration test compares the two product by product. While `ENABLE_DEMO_DATA` is on, every page is `noindex, nofollow`, the sitemap is empty and no structured data is emitted except the homepage's Organization/WebSite.
+- **Reason:** SPEC §12 ("one function, unit-tested") and rule 2.1.2.
+
+### D65. Metadata helper
+
+- **Decision:** `pageMetadata()` sets title, description (≤ 300 chars), canonical, robots (from the indexability result), Open Graph and Twitter cards on every public page. Filtered and paginated listings are `noindex, follow` with the unfiltered page as canonical; product variants share the product's canonical URL.
+- **Reason:** Unique, consistent metadata without per-page boilerplate.
+
+### D66. Structured data
+
+- **Decision:** JSON-LD via one server component (`JsonLd`), serialized with `<`, `>`, `&`, U+2028 and U+2029 escaped and carrying the CSP nonce — the only `dangerouslySetInnerHTML` (scoped lint exception). Homepage: Organization + WebSite with SearchAction. Indexable pages: BreadcrumbList; Product (name, brand, model, MPN, release date, category, primary image, key specifications as `additionalProperty`) on indexable products; Article on guides. `Offer` entries only for fresh, non-demo offers in the visitor's selected market — none when "All markets" is selected. Never Review or AggregateRating (tested).
+- **Reason:** SPEC §12. An offer without a specific market cannot be "in-market".
+
+### D67. 301 redirects in the proxy
+
+- **Decision:** `src/proxy.ts` (Next 16's Node.js proxy) answers **301** for renamed product/brand/category/guide slugs (`slug_redirects`), wrong brand segments in product URLs, and non-canonical comparison orders, keeping the query string. It runs one indexed lookup only for those path prefixes. The pages keep their own `permanentRedirect` (308) as a fallback.
+- **Reason:** SPEC §12 asks for 301s; D23 deferred this. A lookup per detail-page request is cheap next to the page's own queries.
+
+### D68. Content Security Policy and headers
+
+- **Decision:** The proxy creates a fresh nonce per page request and sends `Content-Security-Policy: default-src 'self'; script-src 'self' 'nonce-…' 'strict-dynamic'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'` (+ `upgrade-insecure-requests` and HSTS when `SITE_URL` is https; `'unsafe-eval'` in development only). The nonce reaches Next.js's scripts, the theme script (next-themes) and JSON-LD. `next.config.ts` adds `X-Frame-Options: DENY`, `X-Content-Type-Options`, `Referrer-Policy`, `Cross-Origin-Opener-Policy` and a restrictive `Permissions-Policy` everywhere, and `X-Robots-Tag: noindex` on the admin. Inline style attributes stay allowed (they cannot execute code; several components set sizes inline).
+- **Reason:** SPEC §13. An e2e test exercises interactive pages and asserts no CSP violations.
+
+### D69. Client addresses for rate limiting
+
+- **Decision:** `TRUSTED_PROXY_HOPS` (default 1): the client address is the `X-Forwarded-For` entry that many hops from the **end** (what our own proxy appended), not the first entry (which the client controls). `0` ignores the header (one shared bucket). Addresses are only ever used hashed.
+- **Reason:** Taking the first entry let clients choose their own rate-limit bucket. Documented as a deployment setting.
+
+### D70. No ISR
+
+- **Decision:** Pages stay dynamically rendered. Every page now needs a per-request CSP nonce, and prices depend on the market cookie. Instead, the queries were measured and fixed (`docs/PERFORMANCE.md`).
+- **Reason:** SPEC §14 performance goals are met without static generation; a nonce CSP requires dynamic rendering.
+
+### D71. Search candidates from indexes
+
+- **Decision:** See `docs/PERFORMANCE.md`: candidates from identifier B-trees, the full-text index and a trigram index on the new `products.search_text` column (brand + name, lowercased and unaccented, maintained by the search trigger); scoring unchanged. Trigram operator thresholds are set per transaction (`set_config(..., true)`) to the search cut-off.
+- **Reason:** Search was 240–960 ms at 20,000 products; now 15–30 ms.
+
+### D72. Accessibility checks
+
+- **Decision:** axe (`@axe-core/playwright`, WCAG 2.1 A/AA) runs in e2e on 14 public pages in light and dark mode and on 9 admin screens; the build fails on any violation. Links inside running text are underlined (they were distinguished by colour only).
+- **Reason:** SPEC rule 2.3.4 and Stage 7.

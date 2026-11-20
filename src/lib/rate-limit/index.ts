@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { sql } from "drizzle-orm";
+import { getEnv } from "@/config/env";
 import type { DbOrTx } from "@/lib/db";
 
 export interface RateLimitResult {
@@ -55,9 +56,21 @@ export function rateLimitKey(scope: string, ...parts: string[]): string {
   return `${scope}:${digest}`;
 }
 
-/** Best-effort client address from proxy headers (used only as hashed rate-limit input). */
-export function clientAddress(headers: Headers): string {
-  const fwd = headers.get("x-forwarded-for");
-  if (fwd) return fwd.split(",")[0]!.trim();
-  return headers.get("x-real-ip") ?? "unknown";
+/**
+ * Client address for rate limiting (hashed, never stored raw). Each trusted proxy appends the
+ * address it saw to X-Forwarded-For, so the real client is `hops` entries from the end; anything
+ * before that was supplied by the client and cannot be trusted (taking the first entry would let
+ * clients pick their own rate-limit bucket).
+ */
+export function clientAddress(
+  headers: Headers,
+  hops: number = getEnv().TRUSTED_PROXY_HOPS,
+): string {
+  if (hops <= 0) return "unknown";
+  const parts = (headers.get("x-forwarded-for") ?? "")
+    .split(",")
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (parts.length) return parts[Math.max(0, parts.length - hops)]!;
+  return headers.get("x-real-ip")?.trim() || "unknown";
 }

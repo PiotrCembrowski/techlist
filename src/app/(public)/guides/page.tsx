@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { getIndexability } from "@/modules/seo/indexability";
+import { pageMetadata } from "@/modules/seo/metadata";
 import Link from "next/link";
 import { DemoTag } from "@/components/product/demo-tag";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
@@ -7,11 +9,17 @@ import { getDb } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { listPublishedGuides } from "@/modules/guides/service";
 
-export const metadata: Metadata = {
-  title: "Guides",
-  description: "Practical guides to reading and comparing technology specifications.",
-  alternates: { canonical: "/guides" },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const itemCount = (await listPublishedGuides(getDb(), { limit: 48 })).filter(
+    (g) => !g.isDemo,
+  ).length;
+  return pageMetadata({
+    title: "Guides",
+    description: "Practical guides to reading and comparing technology specifications.",
+    path: "/guides",
+    indexability: getIndexability({ kind: "listing", filtered: false, itemCount }),
+  });
+}
 
 export default async function GuidesIndex() {
   const guides = await listPublishedGuides(getDb(), { limit: 48 });

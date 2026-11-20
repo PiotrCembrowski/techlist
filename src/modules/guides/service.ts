@@ -15,6 +15,7 @@ export interface GuideDetail extends GuideSummary {
   bodyMarkdown: string;
   seoTitle: string | null;
   seoDescription: string | null;
+  updatedAt: Date | null;
   products: { slug: string; name: string; brandSlug: string; brandName: string }[];
   categories: { slug: string; name: string }[];
 }
@@ -95,9 +96,11 @@ export async function getPublishedGuide(
       body_markdown: string;
       seo_title: string | null;
       seo_description: string | null;
+      updated_at: string | null;
     }
   >(sql`
-    SELECT g.id, g.slug, g.title, g.summary, g.author_name, g.published_at::text, g.is_demo, g.body_markdown, g.seo_title, g.seo_description
+    SELECT g.id, g.slug, g.title, g.summary, g.author_name, g.published_at::text, g.is_demo, g.body_markdown, g.seo_title, g.seo_description,
+           g.updated_at::text
     FROM guides g WHERE g.slug = ${slug} AND ${PUBLISHED}`);
   if (!row) {
     const to = await resolveSlugRedirect(db, "guide", slug);
@@ -120,6 +123,7 @@ export async function getPublishedGuide(
       bodyMarkdown: row.body_markdown,
       seoTitle: row.seo_title,
       seoDescription: row.seo_description,
+      updatedAt: row.updated_at ? new Date(row.updated_at) : null,
       products: products.map((p) => ({
         slug: p.slug,
         name: p.name,

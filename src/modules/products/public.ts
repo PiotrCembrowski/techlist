@@ -4,6 +4,7 @@ import type { DbOrTx } from "@/lib/db";
 import { formatSpecValue } from "@/lib/format";
 import type { PageLookup } from "@/modules/catalog/pages";
 import { getProductGallery, type PublicImage } from "@/modules/media/public";
+import { getIndexability, type Indexability } from "@/modules/seo/indexability";
 import { productHref } from "@/modules/catalog/service";
 import { getCategoryAncestors, type Category } from "@/modules/categories/service";
 import { listGuidesForProduct, type GuideSummary } from "@/modules/guides/service";
@@ -67,6 +68,8 @@ export interface ProductPageData {
   sources: DataSourceSummary[];
   guides: GuideSummary[];
   images: PublicImage[];
+  /** SPEC §12 rule for the canonical (variant-less) page. */
+  indexability: Indexability;
 }
 
 function withVariant(path: string, variant: string | null | undefined) {
@@ -205,6 +208,10 @@ export async function loadProductPage(
     .filter((k) => k.value);
   const required = defs.filter((d) => d.isRequired);
   const present = required.filter((d) => resolved.some((r) => r.definition.id === d.id)).length;
+  // Indexability uses product-level values only (the canonical page has no variant selected).
+  const productLevelPresent = required.filter((d) =>
+    specRows.some((r) => r.specificationDefinitionId === d.id && r.variantId === null),
+  ).length;
 
   const link = (r: (typeof rels)[number]): RelatedLink => ({
     slug: r.slug,
@@ -249,6 +256,15 @@ export async function loadProductPage(
         isDemo: s.is_demo,
       })),
       images,
+      indexability: getIndexability({
+        kind: "product",
+        publicationStatus: product.publicationStatus,
+        isDemo: product.isDemo,
+        brandActive: true, // the lookup above only finds products of active brands
+        verificationStatus: product.verificationStatus,
+        requiredTotal: required.length,
+        requiredPresent: productLevelPresent,
+      }),
       guides,
     },
   };

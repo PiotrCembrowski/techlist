@@ -170,6 +170,8 @@ export const products = pgTable(
     seoDescription: text(),
     /** Maintained by the `sb_products_search_vector` trigger (includes the brand name). */
     searchVector: tsvector(),
+    /** lower(unaccent(brand + " " + name)), maintained by the same trigger; trigram-indexed for fuzzy search. */
+    searchText: text(),
     ...timestamps,
   },
   (t) => [
@@ -181,6 +183,10 @@ export const products = pgTable(
     index("products_mpn_trgm").using("gin", t.manufacturerPartNumber.op("gin_trgm_ops")),
     index("products_aliases_gin").using("gin", t.aliases),
     index("products_search_vector_gin").using("gin", t.searchVector),
+    index("products_search_text_trgm").using("gin", t.searchText.op("gin_trgm_ops")),
+    // Exact identifier lookups in search (case-insensitive).
+    index("products_model_number_lower_idx").on(sql`lower(${t.modelNumber})`),
+    index("products_mpn_lower_idx").on(sql`lower(${t.manufacturerPartNumber})`),
     index("products_category_pub_idx").on(t.categoryId, t.publicationStatus),
     index("products_brand_pub_idx").on(t.brandId, t.publicationStatus),
     index("products_family_idx").on(t.familyId),

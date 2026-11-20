@@ -1,4 +1,7 @@
 import type { Metadata } from "next";
+import { getIndexability } from "@/modules/seo/indexability";
+import { pageMetadata } from "@/modules/seo/metadata";
+import { countIndexableProducts } from "@/modules/seo/queries";
 import { redirect } from "next/navigation";
 import { CatalogView, hasEmptyParams } from "@/components/catalog/catalog-view";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
@@ -23,12 +26,13 @@ type Props = { searchParams: Promise<RawSearchParams> };
 export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
   const raw = await searchParams;
   const filtered = isFiltered(parseCatalogFilters(raw)) || Boolean(raw.category);
-  return {
+  const count = await countIndexableProducts(getDb(), {});
+  return pageMetadata({
     title: "All products",
     description: "Browse every product in the catalogue by category, brand, status and price.",
-    alternates: { canonical: "/products" },
-    ...(filtered ? { robots: { index: false, follow: true } } : {}),
-  };
+    path: "/products",
+    indexability: getIndexability({ kind: "listing", filtered, itemCount: count }),
+  });
 }
 
 export default async function ProductsPage({ searchParams }: Props) {

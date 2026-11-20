@@ -112,7 +112,9 @@ const FIELD_COLUMN: Record<string, string> = {
   expiresAt: "expires_at",
 };
 
-const arr = <T>(xs: T[], type: string) => sql`${sql.param(xs)}::${sql.raw(type)}[]`;
+// `type` is one of a fixed set of SQL type names (never user input).
+const arr = <T>(xs: T[], type: "text" | "uuid" | "int") =>
+  sql`${sql.param(xs)}::${sql.raw(type)}[]`;
 const uniq = <T>(xs: T[]) => [...new Set(xs)];
 
 function sameMoney(a: string | null, b: unknown) {

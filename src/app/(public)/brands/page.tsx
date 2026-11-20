@@ -1,4 +1,7 @@
 import type { Metadata } from "next";
+import { getIndexability } from "@/modules/seo/indexability";
+import { pageMetadata } from "@/modules/seo/metadata";
+import { countBrandsWithIndexableProducts } from "@/modules/seo/queries";
 import Link from "next/link";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { Container } from "@/components/ui/section";
@@ -6,11 +9,15 @@ import { getDb } from "@/lib/db";
 import { marketName } from "@/lib/format";
 import { listBrandsByProductCount } from "@/modules/catalog/pages";
 
-export const metadata: Metadata = {
-  title: "Brands",
-  description: "Brands in the catalogue, by number of products.",
-  alternates: { canonical: "/brands" },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const itemCount = await countBrandsWithIndexableProducts(getDb());
+  return pageMetadata({
+    title: "Brands",
+    description: "Brands in the catalogue, by number of products.",
+    path: "/brands",
+    indexability: getIndexability({ kind: "listing", filtered: false, itemCount }),
+  });
+}
 
 export default async function BrandsIndex() {
   const brands = await listBrandsByProductCount(getDb(), 200);

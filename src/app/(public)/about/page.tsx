@@ -1,9 +1,18 @@
 import type { Metadata } from "next";
+import { getIndexability } from "@/modules/seo/indexability";
+import { pageMetadata } from "@/modules/seo/metadata";
 import Link from "next/link";
 import { StaticPage } from "@/components/content/static-page";
 import { siteConfig } from "@/config/site";
 
-export const metadata: Metadata = { title: "About", alternates: { canonical: "/about" } };
+export function generateMetadata(): Metadata {
+  return pageMetadata({
+    title: "About",
+    description: "How the catalogue records, sources and dates technology specifications.",
+    path: "/about",
+    indexability: getIndexability({ kind: "content" }),
+  });
+}
 
 export default function AboutPage() {
   return (

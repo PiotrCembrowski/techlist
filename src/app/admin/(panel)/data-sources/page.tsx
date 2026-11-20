@@ -15,7 +15,7 @@ export default async function DataProviders() {
         Where catalogue data can come from. CSV files are fully supported. The other adapters are
         placeholders: they make no network requests and need an agreement with the provider,
         credentials in the environment and an implementation before they can be used. See{" "}
-        <code>docs/DATA_SOURCES.md</code>.
+        <code>docs/DATA_ACQUISITION.md</code>.
       </p>
       <AdminTable head={["Provider", "Status", "Settings", "Use"]}>
         <tr>

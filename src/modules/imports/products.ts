@@ -343,22 +343,27 @@ async function loadLookups(
       return false;
     return true;
   });
+  // Name similarity through the trigram index (`%` uses pg_trgm.similarity_threshold, set to the
+  // same 0.6 cut-off for this transaction) instead of comparing every row with every product.
   const simRows = simInput.length
-    ? await db.execute<{ idx: number; id: string; name: string; score: number }>(sql`
-        SELECT x.idx, p.id, p.name, similarity(lower(p.name), lower(x.name))::float AS score
-        FROM unnest(${arr(
-          simInput.map((r) => r.idx),
-          "int",
-        )}, ${arr(
-          simInput.map((r) => brands.get(r.data.brand)!.id),
-          "uuid",
-        )},
-                    ${arr(
-                      simInput.map((r) => r.data.productName),
-                      "text",
-                    )}) AS x(idx, brand_id, name)
-        JOIN products p ON p.brand_id = x.brand_id AND similarity(lower(p.name), lower(x.name)) >= 0.6
-        ORDER BY x.idx, score DESC`)
+    ? await db.transaction(async (tx) => {
+        await tx.execute(sql`SELECT set_config('pg_trgm.similarity_threshold', '0.6', true)`);
+        return tx.execute<{ idx: number; id: string; name: string; score: number }>(sql`
+          SELECT x.idx, p.id, p.name, similarity(lower(p.name), lower(x.name))::float AS score
+          FROM unnest(${arr(
+            simInput.map((r) => r.idx),
+            "int",
+          )}, ${arr(
+            simInput.map((r) => brands.get(r.data.brand)!.id),
+            "uuid",
+          )}, ${arr(
+            simInput.map((r) => r.data.productName),
+            "text",
+          )}) AS x(idx, brand_id, name)
+          JOIN products p ON p.name % x.name AND p.brand_id = x.brand_id
+          WHERE similarity(lower(p.name), lower(x.name)) >= 0.6
+          ORDER BY x.idx, score DESC`);
+      })
     : [];
   const similar = new Map<number, { id: string; name: string; score: number }[]>();
   for (const s of simRows)
@@ -801,7 +806,8 @@ export async function planProductRows(
     void key;
   }
 
-  // Final actions.
+  // Final actions. The first creating row of each new product carries the "creates" note.
+  const leadOfGroup = new Set<string>();
   for (const p of plans) {
     if (p.issues.length) {
       p.action = "error";
@@ -820,8 +826,10 @@ export async function planProductRows(
       p.notes.push("No changes");
     }
     if (!p.productId && p.groupKey) {
-      const lead = plans.find((q) => q.groupKey === p.groupKey && q.action === "create");
-      if (lead === p) p.notes.unshift("Creates a draft product (queued for review)");
+      if (p.action === "create" && !leadOfGroup.has(p.groupKey)) {
+        leadOfGroup.add(p.groupKey);
+        p.notes.unshift("Creates a draft product (queued for review)");
+      }
     }
     if (p.createVariant) p.notes.push(`Adds variant "${p.data!.variant!.name}"`);
     const specCount = p.specWrites.length;

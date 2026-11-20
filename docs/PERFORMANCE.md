@@ -20,6 +20,27 @@ Synthetic rows exist only in that database and are never served.
 | Indexable products in a category (~7,500 products) |         106 ms |        65 ms |
 | Sitemap: count / one file                          |   597 / 657 ms | 298 / 377 ms |
 
+## CSV imports at the 10,000-row limit (Stage 8)
+
+Same database (20,000 products), measured through the import service, one run each:
+
+| Import                                                                                | Upload | Validate (preview) |                 Commit |
+| ------------------------------------------------------------------------------------- | -----: | -----------------: | ---------------------: |
+| Re-import of an exported category (10,000 existing rows; adds missing source records) |  0.9 s |              2.1 s |  29–33 s (~330 rows/s) |
+| 10,000 **new** products (8,469 created, 1,531 sent to review as likely duplicates)    |  0.9 s |            24–29 s | **509 s** (~20 rows/s) |
+
+- New products are slow to commit because every row goes through the normal services: product,
+  review item, ~9 specification values (each validated, unit-parsed, verified-value-protected and
+  audited) and a source record — about 70 queries per row, all in one request.
+- Previewing new products is dominated by the required name-similarity check (one trigram-index
+  probe per row). The benchmark's names overlap heavily (each new name contains an existing one),
+  so this is close to a worst case.
+- **Consequence:** an import of thousands of _new_ products exceeds the request time limit of many
+  hosts. Since Stage 8 a killed commit can be resumed safely (D73): commit again after 15 minutes
+  and the remaining rows are applied, finished rows become no-ops. Until background jobs exist
+  (`docs/ROADMAP.md`), split very large files of new products into files of ~1,000 rows
+  (≈ 50 s each), or run imports on a Node server without a request timeout.
+
 ## What changed
 
 - **Search** computed three similarity scores for every published product, which no index can

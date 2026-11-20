@@ -407,3 +407,25 @@ One entry per non-obvious engineering decision: **decision**, **reason**, **alte
 
 - **Decision:** axe (`@axe-core/playwright`, WCAG 2.1 A/AA) runs in e2e on 14 public pages in light and dark mode and on 9 admin screens; the build fails on any violation. Links inside running text are underlined (they were distinguished by colour only).
 - **Reason:** SPEC rule 2.3.4 and Stage 7.
+
+## 2026-11-20 — Stage 8
+
+### D73. Abandoned import commits can be resumed
+
+- **Decision:** A commit claims its job (`started_at`) and refreshes the claim after every batch of 100 rows. A claim older than 15 minutes (`STALE_COMMIT_MINUTES`) counts as abandoned — e.g. the host killed a long request — and can be taken over by a new commit, or the import can be cancelled. Resuming is safe because the commit re-plans every row: rows already applied become `skip`/`update`.
+- **Reason:** Committing 10,000 new products takes minutes (`docs/PERFORMANCE.md`), longer than many hosts allow per request; before this, a killed request left the job locked for good.
+- **Alternatives:** Background job runner — the better long-term answer (`docs/ROADMAP.md`), but a new moving part.
+
+### D74. Import duplicate detection uses the trigram index
+
+- **Decision:** The name-similarity step joins rows to products with `name % row_name` (GIN trigram index, threshold set to the same 0.6 for the transaction) instead of computing similarity for every row × product pair of the brand. A quadratic lookup in the final planning pass was replaced by a set.
+- **Reason:** Previewing 10,000 new rows took ~29 s. Measured effect is modest (~24 s): with the benchmark's heavily overlapping names, each index probe still returns many candidates (`docs/PERFORMANCE.md`). The check itself is required (SPEC §9.6), so it stays.
+
+### D75. CI workflow
+
+- **Decision:** `.github/workflows/ci.yml` runs the stage gate on every push to `main` and every pull request: typecheck, lint, formatting, migrations from scratch, seed twice (the second must change nothing), unit, integration and e2e tests against a PostgreSQL 16 service, with test-only secrets.
+- **Reason:** SPEC §19 (migrations in CI/CD). Not run in this environment (no GitHub Actions runner here).
+
+### D76. `DATA_SOURCES.md` became `DATA_ACQUISITION.md`
+
+- **Decision:** The Stage 6B provider document was renamed and extended to the SPEC §19 scope (CSV import, matching, provenance, verification workflow, adapters, data rights).

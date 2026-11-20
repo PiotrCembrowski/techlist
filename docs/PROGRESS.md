@@ -12,11 +12,65 @@
 | 6A Admin core             | Auth.js credentials + argon2id, `admin:create`, Postgres rate limiter, role checks in every action, CRUD, audit log. Journey D                                                                                                                                                                    | **Done** |
 | 6B Imports & verification | CSV stage/validate/preview/commit, duplicate detection, error report, export with formula-injection guard, review queue, correction form. Journey E                                                                                                                                               | **Done** |
 | 7 SEO & quality           | Metadata, JSON-LD, indexability function, sitemap/robots, slug 301s, axe, security headers/CSP                                                                                                                                                                                                    | **Done** |
-| 8 Final                   | Full suite, mobile e2e, all docs, acceptance checklist                                                                                                                                                                                                                                            | Next     |
+| 8 Final                   | Full suite, mobile e2e, all docs, acceptance checklist                                                                                                                                                                                                                                            | **Done** |
 
 Order of work inside each stage: schema/service → tests → UI → e2e journey → gate.
 
 ---
+
+## Stage 8 — final verification, 2026-11-20
+
+All checks below were run in this session on the **Docker Compose database** (`pnpm db:up`,
+PostgreSQL 16.16) — the setup the README documents.
+
+### Gate
+
+| Check                                            | Command                                                    | Result                                                                                                          |
+| ------------------------------------------------ | ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Formatting / typecheck / lint                    | `pnpm format:check`, `pnpm typecheck`, `pnpm lint`         | pass                                                                                                            |
+| Unit tests                                       | `pnpm test:unit`                                           | 150 passed (15 files)                                                                                           |
+| Integration tests (real PostgreSQL)              | `pnpm test:integration`                                    | 143 passed (14 files)                                                                                           |
+| E2E — desktop (1440 px) **and** mobile (Pixel 7) | `pnpm e2e`                                                 | 74 passed: 31 desktop + 31 mobile public, 6 + 6 admin                                                           |
+| Migrations from scratch, seed ×3                 | `pnpm db:migrate:fresh && pnpm db:seed` ×3                 | runs 2–3: "No row counts changed"                                                                               |
+| No pending schema changes                        | `pnpm db:generate`                                         | "No schema changes, nothing to migrate"                                                                         |
+| Docker Compose database                          | `pnpm db:up`, `pnpm db:check`, `pnpm db:check --test`      | healthy; PostgreSQL 16, `pg_trgm` + `unaccent` available (was blocked by a Docker Hub rate limit in Stages 1–7) |
+| App starts locally                               | `pnpm dev`, then `/api/health` and nine public/admin pages | health `{"status":"ok","database":"ok"}`; all pages 200, no errors in the log                                   |
+| Imports at the 10,000-row limit                  | `pnpm perf:bench`                                          | measured, see `docs/PERFORMANCE.md` (preview 2–29 s; committing 10,000 _new_ products 509 s)                    |
+
+### Acceptance checklist (SPEC §18)
+
+| Criterion                                                                                                                                      | Status       | Evidence                                                                                                                                                                                                                                                                                                                                      |
+| ---------------------------------------------------------------------------------------------------------------------------------------------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| App starts locally; PostgreSQL connects; migrations run from scratch; seed runs repeatedly without duplicates                                  | **Verified** | Gate above (Docker Compose, `pnpm dev` + health check, `db:migrate:fresh`, seed ×3); `tests/integration/seed.test.ts`.                                                                                                                                                                                                                        |
+| Public pages load; search (exact model number, fuzzy, brand) works; category-specific filtering works; product detail pages with variants work | **Verified** | Journey A (search by model number → product page → spec values), catalogue e2e (generated filters in the URL, variant selector), `catalog.test.ts` (search exact/FTS/trigram/brand, filters); spot checks in `pnpm dev`: exact `NA7P-2611`, partial "aera 7 pr", typo "aerra" and brand "novik" all return the right products.                |
+| Comparison works for 2–4 products, handles missing specs and normalizes units; URLs are canonical and shareable                                | **Verified** | Journey B (add two, add a third, remove one, "Not available", URL updates, non-canonical order → 301), `comparisons.test.ts` unit + integration.                                                                                                                                                                                              |
+| Offers show only real or explicitly labeled demo data, with freshness and market; stale/expired rules hold                                     | **Verified** | Journey C (retailer, price, currency, market, last checked, Demo tag, stale warning), `offers.test.ts` unit + integration (fresh/stale/expired/inactive, grouping by market).                                                                                                                                                                 |
+| Affiliate redirects are safe (no open redirect) and record clicks                                                                              | **Verified** | Journey C (302 to the configured demo URL, one `affiliate_clicks` row, tampered/unknown/expired ids → 404), redirect unit tests (host allow-list, lookalike hosts, credentials, ports, non-https).                                                                                                                                            |
+| Admin authentication and server-side authorization work; product CRUD works; CSV import/export works and is idempotent                         | **Verified** | Journey D (login → create → variant → specs → source → publish → public page → logout → admin URLs redirect), `admin-auth.test.ts` (every admin action and route handler rejects anonymous, deleted and deactivated users; owner-only actions), Journey E and `imports.test.ts` (re-import creates zero records, export → import is a no-op). |
+| Source attribution and verification status are visible publicly                                                                                | **Verified** | Journey A ("Verified · 12 Nov 2026" on the product page), Journey D (the recorded source appears on the public page).                                                                                                                                                                                                                         |
+| SEO metadata, JSON-LD, indexability rules and sitemap work; demo data is never indexed                                                         | **Verified** | `indexability.test.ts`, `structured-data.test.ts`, `seo.test.ts` (SQL rule = TypeScript rule for every product; sitemap lists only indexable records, splits correctly, empty in demo mode), `seo-security.spec.ts` (noindex + no Product JSON-LD on demo records, canonical, Open Graph, robots, sitemap, 301s).                             |
+| Mobile layouts work                                                                                                                            | **Verified** | Every public and admin e2e test also runs on Pixel 7 (37 tests), including no horizontal scroll at phone width and axe on 14 pages in light and dark mode. Screenshots at 390 px were reviewed in Stages 3–6B.                                                                                                                                |
+| Tests, typecheck and lint pass                                                                                                                 | **Verified** | Gate above.                                                                                                                                                                                                                                                                                                                                   |
+| Documentation is complete                                                                                                                      | **Verified** | SPEC §19 list: `README.md`, `CLAUDE.md`, `docs/SPEC.md`, `PROGRESS.md`, `DECISIONS.md`, `ARCHITECTURE.md`, `DATA_MODEL.md`, `DATA_ACQUISITION.md`, `DEPLOYMENT.md`, `ROADMAP.md` all present and current (plus `PERFORMANCE.md`).                                                                                                             |
+
+### Done in this stage
+
+- Docs: `ARCHITECTURE.md`, `DATA_MODEL.md` (ER diagram), `DATA_ACQUISITION.md` (was `DATA_SOURCES.md`), `DEPLOYMENT.md` (hosting, managed Postgres, storage, environment, migrations in CI/CD, backup and restore), `ROADMAP.md`; README documentation index and setup steps; `CLAUDE.md` pointers.
+- CI workflow `.github/workflows/ci.yml` (the full gate against a PostgreSQL 16 service).
+- Imports: an interrupted commit can be resumed after 15 minutes (heartbeat per batch; tested), the quadratic step in planning removed, similarity through the trigram index, and the admin import page explains the limits for large files of new products.
+
+### Done but not verified
+
+- **CI workflow** — written, not run (no GitHub Actions runner here).
+- **S3 storage driver** — written against the AWS SDK v3 API, never run against a real bucket (no credentials; rule 2.1.10).
+- **HTTPS-only headers** (HSTS, `upgrade-insecure-requests`) — unit-tested; the test site runs on http.
+- **Structured data** — tested against our own builders, not with Google's validator (no network access to it).
+- **Provider adapters** — stubs by design (no agreements); "not configured" behaviour is tested.
+
+### Known limits (documented, not hidden)
+
+- Committing thousands of **new** products in one CSV takes minutes (~20 rows/s) inside one request; split files (~1,000 rows) or run on a server without a request timeout until background jobs exist (`docs/ROADMAP.md`). Interrupted commits resume safely.
+- Sitemap and `robots.txt` are computed per request (~0.3–0.5 s at 20,000 products).
 
 ## Stage 7 — gate run 2026-11-20
 
@@ -64,11 +118,11 @@ Built and covered by tests:
 
 - HSTS and `upgrade-insecure-requests` only apply when `SITE_URL` is https; the test environment is http, so they were checked in unit tests only.
 - Structured data was validated by tests against our own builders, not with an external validator (no network access to Google's Rich Results Test here).
-- Docker Compose database — still blocked by the Docker Hub rate limit in this environment.
+- Docker Compose database — still blocked by the Docker Hub rate limit in this environment (verified in Stage 8).
 
 ### Deferred
 
-- `docs/DEPLOYMENT.md` (deployment, proxy hops, backups) and the final acceptance checklist → **Stage 8**.
+- `docs/DEPLOYMENT.md` (deployment, proxy hops, backups) and the final acceptance checklist → **Stage 8** (done).
 - Coverage stored per product (instead of computed) if categories grow far beyond ~10,000 products (`docs/PERFORMANCE.md`).
 
 ## Stage 6B — gate run 2026-11-20
@@ -99,12 +153,12 @@ Built and covered by tests:
 ### Done but not verified
 
 - Large imports at the 10,000-row limit: the design is bulk-query based (D55) but was only run with small files here; timing on real data is unmeasured.
-- Docker Compose database — still blocked by the Docker Hub rate limit in this environment.
+- Docker Compose database — still blocked by the Docker Hub rate limit in this environment (verified in Stage 8).
 
 ### Deferred
 
 - Client addresses come from `X-Forwarded-For` → done in Stage 7 (`TRUSTED_PROXY_HOPS`, D69).
-- Import progress for very large files (commits run inside the request) → later, if measured imports are slow.
+- Import progress for very large files (commits run inside the request) → measured in Stage 8 (slow for new products); resumable commits added, background jobs on the roadmap.
 
 ## Stage 6A — gate run 2026-11-20
 
@@ -131,7 +185,7 @@ Built and covered by tests:
 ### Done but not verified
 
 - `S3StorageDriver` — written against the AWS SDK v3 API but not run: no bucket or credentials exist in this environment (rule 2.1.10).
-- Docker Compose database — still blocked by the Docker Hub rate limit in this environment.
+- Docker Compose database — still blocked by the Docker Hub rate limit in this environment (verified in Stage 8).
 
 ### Deferred
 
@@ -164,7 +218,7 @@ Built and covered by tests:
 
 ### Done but not verified
 
-- Docker Compose database — still blocked by the Docker Hub rate limit in this environment.
+- Docker Compose database — still blocked by the Docker Hub rate limit in this environment (verified in Stage 8).
 
 ### Deferred
 
@@ -196,7 +250,7 @@ Built and covered by tests:
 
 ### Done but not verified
 
-- Docker Compose database — still blocked by the Docker Hub rate limit in this environment.
+- Docker Compose database — still blocked by the Docker Hub rate limit in this environment (verified in Stage 8).
 
 ### Deferred
 

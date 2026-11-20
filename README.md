@@ -5,12 +5,23 @@ processors, graphics cards, monitors and headphones; side-by-side comparison of 
 products; and retailer offers with honest freshness, market and affiliate disclosure.
 No ratings, scores or "winners".
 
-> **Status:** Stages 1–5 of 8 are done (foundation, database, public catalogue, comparison, offers).
-> Admin, imports, SEO and final docs come in later stages. See [`docs/PROGRESS.md`](docs/PROGRESS.md).
+> **Status:** MVP complete — all eight stages are done; the acceptance checklist with what is and
+> isn't verified is in [`docs/PROGRESS.md`](docs/PROGRESS.md).
 
-- Specification (source of truth): [`docs/SPEC.md`](docs/SPEC.md)
-- Decisions: [`docs/DECISIONS.md`](docs/DECISIONS.md)
-- Design direction: **1a "Drafting Sheet"** from the Claude Design handoff in [`design/`](design/README.md)
+## Documentation
+
+| Document                                                                          | Contents                                                                                      |
+| --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| [`docs/SPEC.md`](docs/SPEC.md)                                                    | Specification (source of truth)                                                               |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)                                    | Structure, modules, data flows, product/variant model, search, offers, imports, SEO, security |
+| [`docs/DATA_MODEL.md`](docs/DATA_MODEL.md)                                        | Every table, key fields, relationships and constraints (ER diagram)                           |
+| [`docs/DATA_ACQUISITION.md`](docs/DATA_ACQUISITION.md)                            | CSV import, matching, provenance, verification workflow, provider adapters, data rights       |
+| [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)                                        | Hosting, managed PostgreSQL, storage, environment, migrations in CI/CD, backup and restore    |
+| [`docs/PERFORMANCE.md`](docs/PERFORMANCE.md)                                      | Benchmarks at 20,000 products                                                                 |
+| [`docs/ROADMAP.md`](docs/ROADMAP.md)                                              | Deferred and out-of-scope features                                                            |
+| [`docs/PROGRESS.md`](docs/PROGRESS.md) / [`docs/DECISIONS.md`](docs/DECISIONS.md) | Stage status and the decision log                                                             |
+
+Design direction: **1a "Drafting Sheet"** from the Claude Design handoff in [`design/`](design/README.md).
 
 ## Stack
 
@@ -28,12 +39,14 @@ Zod 4 · Vitest · Playwright · pnpm.
 
 ```bash
 pnpm install
-cp .env.example .env          # adjust if your database differs
+cp .env.example .env          # adjust if your database differs, then set AUTH_SECRET
+                              # (e.g. the output of: openssl rand -base64 32)
 pnpm db:up                    # PostgreSQL 16 in Docker (creates specbase + specbase_test)
 pnpm db:check                 # confirms version and extensions
 pnpm db:migrate               # apply migrations
 pnpm db:seed                  # fictional demo data (idempotent: safe to run again)
-pnpm dev                      # http://localhost:3000
+pnpm admin:create --email you@example.com --name "You"   # first admin (owner)
+pnpm dev                      # http://localhost:3000 (admin: /admin)
 ```
 
 **Without Docker:** create a role and two databases yourself. Migrations install `pg_trgm` and `unaccent`;
@@ -65,7 +78,7 @@ Validated with Zod at startup (`src/config/env.ts`); see `.env.example`.
 | `S3_BUCKET` / `S3_REGION`                                       | with `s3`      | —                       | Bucket and region; `S3_ENDPOINT` for R2/MinIO                                  |
 | `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY`                     | no             | —                       | Omit to use the SDK's default credential chain                                 |
 | `TRUSTED_PROXY_HOPS`                                            | no             | `1`                     | Reverse proxies that append to `X-Forwarded-For` (rate limits); `0` ignores it |
-| `MANUFACTURER_FILES_DIR`, `LICENSED_FEED_*`, `AFFILIATE_FEED_*` | no             | —                       | Data provider adapters; unset = "Not configured" (`docs/DATA_SOURCES.md`)      |
+| `MANUFACTURER_FILES_DIR`, `LICENSED_FEED_*`, `AFFILIATE_FEED_*` | no             | —                       | Data provider adapters; unset = "Not configured" (`docs/DATA_ACQUISITION.md`)  |
 
 ## Database
 
@@ -110,7 +123,7 @@ Sign-in is limited to 5 attempts per 15 minutes per address and email.
 - **Review queue** (`/admin/review`): conflicting and unverified values, possible duplicates,
   variant ambiguity, new imported products, reader corrections and suspicious prices. Approve
   (optionally after editing), or reject with a note; every decision is audited.
-- **Data providers** (`/admin/data-sources`): which adapters are configured (`docs/DATA_SOURCES.md`).
+- **Data providers** (`/admin/data-sources`): which adapters are configured (`docs/DATA_ACQUISITION.md`).
 
 Readers can suggest corrections from any product page (no account; rate limited; honeypot).
 
@@ -126,6 +139,9 @@ PERF_DATABASE_URL=postgres://…/specbase_perf pnpm perf:bench   # 20,000-produc
 
 ## Deployment (summary)
 
-Vercel-compatible Next.js app with a managed PostgreSQL 16 database. Set the environment variables
-above (`SITE_URL` must be the public origin), run `pnpm db:migrate` as a release step, and never
-run the demo seed against production data. Full guide: `docs/DEPLOYMENT.md` (Stage 8).
+A Node.js (or Vercel) Next.js app with a managed PostgreSQL 16 database (`pg_trgm`, `unaccent`) and
+local or S3-compatible image storage. Set the environment variables above (`SITE_URL` must be the
+public `https://` origin, `TRUSTED_PROXY_HOPS` must match your proxies), run `pnpm db:migrate` as a
+release step, create the first admin with `pnpm admin:create`, and never run the demo seed against
+production data. CI (`.github/workflows/ci.yml`) runs every check below. Full guide, including
+backup and restore: [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).

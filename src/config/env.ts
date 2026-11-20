@@ -38,7 +38,7 @@ export const envSchema = z.object({
    * header (all clients share one bucket). Wrong values let clients spoof their address.
    */
   TRUSTED_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(1),
-  /** Data provider adapters (SPEC §10). Unset = "Not configured"; see docs/DATA_SOURCES.md. */
+  /** Data provider adapters (SPEC §10). Unset = "Not configured"; see docs/DATA_ACQUISITION.md. */
   MANUFACTURER_FILES_DIR: z.string().optional(),
   LICENSED_FEED_URL: z.url().optional(),
   LICENSED_FEED_API_KEY: z.string().optional(),

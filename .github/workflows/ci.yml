@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: specbase
+          POSTGRES_PASSWORD: specbase
+          POSTGRES_DB: specbase
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U specbase -d specbase"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      # Test-only values; no real secrets are needed for CI.
+      DATABASE_URL: postgres://specbase:specbase@localhost:5432/specbase
+      TEST_DATABASE_URL: postgres://specbase:specbase@localhost:5432/specbase_test
+      AUTH_SECRET: ci-only-secret-not-used-anywhere-else-0000
+      SITE_URL: http://localhost:3000
+      ENABLE_DEMO_DATA: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Create the test database and extensions
+        run: psql "postgres://specbase:specbase@localhost:5432/specbase" -f scripts/db/init.sql
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm format:check
+      - name: Migrations from scratch, seed twice (second run must change nothing)
+        run: |
+          pnpm db:migrate:fresh
+          pnpm db:seed
+          pnpm db:seed | tee seed.log
+          grep -q "No row counts changed" seed.log
+      - run: pnpm test:unit
+      - run: pnpm test:integration
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm e2e --trace off
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-results
+          path: test-results/

@@ -74,7 +74,7 @@ abstract class StubProvider implements ProductDataProvider {
   async fetchProducts(): Promise<unknown[]> {
     throw new ProviderNotAvailableError(
       this.isConfigured()
-        ? `${this.name}: settings are present but no adapter is implemented yet (see docs/DATA_SOURCES.md)`
+        ? `${this.name}: settings are present but no adapter is implemented yet (see docs/DATA_ACQUISITION.md)`
         : `${this.name} is not configured`,
     );
   }

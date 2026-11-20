@@ -32,6 +32,8 @@ export const MAX_IMPORT_ROWS = 10_000;
 export const IMPORT_LIMIT = 20;
 export const IMPORT_WINDOW_SECONDS = 60 * 60;
 const COMMIT_BATCH = 100;
+/** A commit that has not finished a batch for this long is considered abandoned. */
+export const STALE_COMMIT_MINUTES = 15;
 const UPDATE_CHUNK = 500;
 
 const sha256 = (s: string | Uint8Array) => createHash("sha256").update(s).digest("hex");
@@ -320,7 +322,9 @@ export interface CommitResult {
  * at commit time. Conflicts become review items; nothing is merged on similarity alone.
  */
 export async function commitImportJob(ctx: ServiceContext, jobId: string): Promise<CommitResult> {
-  // Claim the job so two commits cannot run at once.
+  // Claim the job so two commits cannot run at once. A claim with no progress for
+  // STALE_COMMIT_MINUTES (e.g. the request was killed by a host timeout) can be taken over: the
+  // plan is recomputed, so rows that were already applied become no-ops.
   const [claimed] = await ctx.db
     .update(importJobs)
     .set({ startedAt: new Date() })
@@ -328,7 +332,7 @@ export async function commitImportJob(ctx: ServiceContext, jobId: string): Promi
       and(
         eq(importJobs.id, jobId),
         eq(importJobs.status, "validated"),
-        sql`${importJobs.startedAt} IS NULL`,
+        sql`(${importJobs.startedAt} IS NULL OR ${importJobs.startedAt} < now() - make_interval(mins => ${STALE_COMMIT_MINUTES}))`,
       ),
     )
     .returning();
@@ -410,6 +414,11 @@ export async function commitImportJob(ctx: ServiceContext, jobId: string): Promi
           updates.push(rowUpdate(row, plan));
         }
       });
+      // Heartbeat: a commit that keeps finishing batches is never treated as abandoned.
+      await ctx.db
+        .update(importJobs)
+        .set({ startedAt: new Date() })
+        .where(eq(importJobs.id, jobId));
     }
 
     await ctx.db.transaction(async (tx) => {
@@ -444,7 +453,9 @@ export async function cancelImportJob(ctx: ServiceContext, jobId: string): Promi
     const job = await lockJob(tx, jobId);
     if (job.status !== "uploaded" && job.status !== "validated")
       throw new InvalidStateError("Only imports that are not committed can be cancelled");
-    if (job.startedAt) throw new InvalidStateError("This import is being committed");
+    if (job.startedAt && Date.now() - job.startedAt.getTime() < STALE_COMMIT_MINUTES * 60_000) {
+      throw new InvalidStateError("This import is being committed");
+    }
     await tx
       .update(importJobs)
       .set({ status: "cancelled", completedAt: new Date() })

@@ -3,7 +3,7 @@
  * products, then times the main read paths through the real services and prints EXPLAIN plans
  * for the heaviest queries.
  *
- *   PERF_DATABASE_URL=postgres://…/specbase_perf pnpm perf:bench [--products 20000]
+ *   PERF_DATABASE_URL=postgres://…/specbase_perf pnpm perf:bench [--products 20000] [--preview-only]
  *
  * The database name must end in "_perf"; its schema is dropped. Synthetic rows ("Benchmark
  * Brand N", "Bench Item N") exist only there and are never served.
@@ -159,6 +159,55 @@ async function main() {
       t.sort((a, b) => a - b);
       console.log(`  ${name.padEnd(36)} ${t[2]!.toFixed(1).padStart(8)} ms`);
     }
+
+    // ─── Imports at the 10,000-row limit (SPEC §9.6) ───────────────────────────────────
+    const { exportProductsCsv } = await import("../../src/modules/imports/export");
+    const { createImportJob, validateImportJob, commitImportJob, countImportRows } =
+      await import("../../src/modules/imports/service");
+    const { parseCsv, writeCsv } = await import("../../src/lib/csv");
+    const [source] = await db.execute<{ id: string }>(
+      sql`SELECT id FROM sources WHERE usage_permitted LIMIT 1`,
+    );
+    const ictx = { db, actorId: null };
+    const time = async <T>(label: string, fn: () => Promise<T>) => {
+      const s = performance.now();
+      const r = await fn();
+      console.log(
+        `  ${label.padEnd(36)} ${((performance.now() - s) / 1000).toFixed(1).padStart(8)} s`,
+      );
+      return r;
+    };
+    const previewOnly = process.argv.includes("--preview-only");
+    const runImport = async (label: string, csv: string, commit = true) => {
+      const file = new File([csv], `${label}.csv`, { type: "text/csv" });
+      const job = await time(`${label}: upload`, () =>
+        createImportJob(ictx, { importType: "products", sourceId: source!.id, file }),
+      );
+      await time(`${label}: validate (preview)`, () => validateImportJob(ictx, job.id));
+      const preview = await countImportRows(db, job.id);
+      if (!commit) return console.log(`    preview ${JSON.stringify(preview)} (not committed)`);
+      const result = await time(`${label}: commit`, () => commitImportJob(ictx, job.id));
+      console.log(`    preview ${JSON.stringify(preview)} → ${JSON.stringify(result)}`);
+    };
+    console.log("\nImports (10,000 rows):");
+    const exported = await exportProductsCsv(db, "laptops");
+    const rows = parseCsv(exported);
+    console.log(`  exported laptops: ${rows.length - 1} rows`);
+    await runImport("re-import export", exported);
+    // 10,000 new products: the exported rows with new names, model numbers and slugs.
+    const header = rows[0]!;
+    const col = (n: string) => header.indexOf(n);
+    const fresh = rows.slice(1, 10_001).map((r, i) => {
+      const c = [...r];
+      c[col("product_name")] = `Fresh ${c[col("product_name")]} ${i}`;
+      c[col("model_number")] = `FR-${i}-${c[col("model_number")]}`;
+      c[col("variant_name")] = "";
+      c[col("variant_code")] = "";
+      c[col("gtin")] = "";
+      return c;
+    });
+    // --preview-only: measure upload + preview of the new rows without the long commit.
+    await runImport("10,000 new products", writeCsv([header, ...fresh]), !previewOnly);
 
     console.log("\nEXPLAIN: indexable products in a category");
     for (const r of await db.execute<{ "QUERY PLAN": string }>(sql`

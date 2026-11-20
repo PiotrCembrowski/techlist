@@ -282,12 +282,22 @@ export function parseUnitless(raw: string | number): number {
   return parseLocaleNumber(m[1]!);
 }
 
+/**
+ * Display-only rescaling: whole multiples of 1000 GB read as TB ("1 TB", not "1,000 GB").
+ * Values stay in the canonical unit in the database and in comparisons.
+ */
+function displayScale(value: number, unitSymbol: string): [number, string] {
+  if (unitSymbol === "GB" && value >= 1000 && value % 1000 === 0) return [value / 1000, "TB"];
+  return [value, unitSymbol];
+}
+
 /** Format a canonical value with its unit for display, e.g. (14.2, "in") -> "14.2″". */
 export function formatQuantity(
-  value: number,
-  unitSymbol: string | null | undefined,
+  rawValue: number,
+  rawUnit: string | null | undefined,
   locale = "en-GB",
 ): string {
+  const [value, unitSymbol] = rawUnit ? displayScale(rawValue, rawUnit) : [rawValue, rawUnit];
   const num = new Intl.NumberFormat(locale, { maximumFractionDigits: 3 }).format(value);
   if (!unitSymbol) return num;
   const unit = BY_SYMBOL.get(unitSymbol);

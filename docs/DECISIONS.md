@@ -135,3 +135,68 @@ One entry per non-obvious engineering decision: **decision**, **reason**, **alte
 - **Decision:** The Claude Design export (board, design-system CSS, chat transcript) lives in `design/`, excluded from TypeScript, lint and formatting.
 - **Reason:** Reference for later stages (cards, PDP, offers table are already drawn there).
 - **Alternatives:** Discard it.
+
+## 2026-11-19 — Stage 3
+
+### D23. Permanent redirects use 308, not 301
+
+- **Decision:** Wrong brand slugs and renamed products/categories/brands/guides redirect with Next.js `permanentRedirect()`, which answers **308**.
+- **Reason:** 308 is the permanent redirect that preserves the request method; search engines treat it the same as 301. Producing a literal 301 from a page in Next.js 16 would need a proxy/middleware layer just for this.
+- **Alternatives:** A `proxy.ts` that rewrites to 301 (revisit in Stage 7 if an SEO tool insists).
+
+### D24. Spec filters match product-level **or** variant-level values
+
+- **Decision:** A filter such as `s.storage.min=1000` matches a product if the product value or any variant value matches ("available with ≥ 1 TB").
+- **Reason:** Variants are configurations of one product; hiding the Aera 7 Pro from a "≥ 1 TB" filter because its default is 256 GB would be wrong.
+- **Alternatives:** Product-level only (misses configurations); listing variants as separate cards (rule 2.1.5 keeps products and variants separate).
+
+### D25. Filter URL format
+
+- **Decision:** `s.<key>.min` / `s.<key>.max` (numeric, canonical unit), repeated `s.<key>=<option>` (enum/multi-select, any-of), `s.<key>=yes|no` (boolean); plus `q`, `brand` (repeatable), `status`, `sort`, `page`, `price.min/max`. Only **filterable** definitions of the page's category (including inherited) are honoured; everything else is ignored. GET forms that submit empty fields redirect to the clean canonical query string. Filtered listings are `noindex, follow` with a canonical to the unfiltered page.
+- **Reason:** Readable, shareable URLs; filters work without JavaScript; no GPU filters on headphone pages by construction.
+- **Alternatives:** Encoded JSON in one param (unreadable).
+
+### D26. Price filter / price sort only for a single-currency market
+
+- **Decision:** Shown only when the selected market's displayable offers use exactly one currency (derived from data, not a hard-coded country→currency table). Price = lowest **fresh, in-stock** offer in that market. For "All markets", cards show offer and market counts but never a price.
+- **Reason:** SPEC §6 — prices in different currencies can't be compared without conversion.
+- **Alternatives:** A static currency map per country (wrong for multi-currency markets).
+
+### D27. Prices are displayed with the ISO currency code
+
+- **Decision:** `PLN 3,899.00`, `USD 699.99` (`Intl.NumberFormat`, `currencyDisplay: "code"`, en-GB).
+- **Reason:** "$" is ambiguous across markets; the original currency must be unmistakable.
+- **Alternatives:** Localised symbols ("3 899,00 zł" as on the design board) once the UI is localised.
+
+### D28. Storage values ≥ 1000 GB display as TB
+
+- **Decision:** Display-only rescaling for whole multiples of 1000 GB ("1 TB"). Stored and compared values stay in GB.
+- **Reason:** "1,000 GB" reads badly; storage stays decimal SI (D14).
+
+### D29. Search: thresholds and ranking
+
+- **Decision:** `PostgresSearchService` ranks exact model number / MPN / variant GTIN / variant MPN first, then `ts_rank` of a prefix tsquery built only from `[a-z0-9]` tokens (no operator injection), then trigram `word_similarity` ≥ 0.35 over name and "brand + name". Brands and categories are separate groups; "did you mean" uses word similarity ≥ 0.25 when nothing matched. Suggestions: max 8 products, 3 brands, 3 categories, minimum 2 characters, 200 ms client debounce.
+- **Reason:** 0.4 missed one-letter typos in short names ("aeara" → "Aera" scores 0.375).
+- **Alternatives:** `pg_trgm` operators with index support (`%`, `<%`) — better at scale; revisit with `EXPLAIN` in Stage 7.
+
+### D30. Postgres rate limiter implemented in Stage 3
+
+- **Decision:** `PostgresRateLimiter` (fixed window, atomic upsert into `rate_limits`, behind a `RateLimiter` interface) ships now for `/api/search/suggest` (60 requests/min per client). Keys hash the client address (SHA-256); rows are pruned after a day.
+- **Reason:** SPEC §13 rate-limits search suggestions, which ship in this stage. Stage 6A reuses it for login.
+- **Alternatives:** No limit until 6A.
+
+### D31. Pages render dynamically per request
+
+- **Decision:** Public pages read the `market` cookie (header, cards), so they render per request. No ISR yet.
+- **Reason:** Correct market-specific prices first. ISR with on-demand revalidation (SPEC §14) needs a market-independent shell; that's a Stage 7 performance task.
+- **Alternatives:** Client-side price islands (more JS).
+
+### D32. Stage 3 scope boundaries
+
+- **Decision:** Not shown yet, because the routes they link to arrive later (rule 2.3.1): the header **Compare** link and card compare toggles (Stage 4), the homepage **featured comparisons** section (Stage 4), the PDP **offer list** with `/go/` links (Stage 5), and **Suggest a correction** (Stage 6B). Product images: always the placeholder until uploads exist (Stage 6A). The brand page "featured comparisons involving the brand" section also arrives in Stage 4.
+- **Reason:** No controls that look functional but do nothing.
+
+### D33. Single root layout; no `(public)` route group yet
+
+- **Decision:** Public routes live directly under `src/app/`. The `(public)` group from SPEC §4 is introduced in Stage 6A, when the admin needs a different layout.
+- **Reason:** Avoids an empty abstraction; moving files into a route group doesn't change URLs.

@@ -6,8 +6,8 @@
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
 | 1 Foundation              | Next.js 16 + strict TS, Tailwind 4 + shadcn conventions, 1a design tokens, ESLint/Prettier, Zod env, Docker Compose, Drizzle, Vitest + Playwright, app shell, `.env.example`, README                                                                                                              | **Done** |
 | 2 Database                | Full schema + migrations, unit registry, services for brands/categories/products/variants/specifications, integration tests, idempotent seed                                                                                                                                                      | **Done** |
-| 3 Public catalog          | Header nav + market selector (cookie), homepage sections, `/products`, `/categories/[slug]` with filters generated from definitions, brand pages, PDP with variants and grouped spec table, search (`SearchService`: exact model/MPN/GTIN → FTS → trigram) + suggestions, static pages. Journey A | Next     |
-| 4 Comparison              | Tray (localStorage), picker, `compareProducts()`, canonical `-vs-` URLs (301), responsive table. Journey B                                                                                                                                                                                        | —        |
+| 3 Public catalog          | Header nav + market selector (cookie), homepage sections, `/products`, `/categories/[slug]` with filters generated from definitions, brand pages, PDP with variants and grouped spec table, search (`SearchService`: exact model/MPN/GTIN → FTS → trigram) + suggestions, static pages. Journey A | **Done** |
+| 4 Comparison              | Tray (localStorage), picker, `compareProducts()`, canonical `-vs-` URLs (301), responsive table. Journey B                                                                                                                                                                                        | Next     |
 | 5 Offers & affiliate      | Fresh/stale/expired rules, market grouping, `/go/[offerId]` with host allowlist, clicks, price-history writes. Journey C                                                                                                                                                                          | —        |
 | 6A Admin core             | Auth.js credentials + argon2id, `admin:create`, Postgres rate limiter, role checks in every action, CRUD, audit log. Journey D                                                                                                                                                                    | —        |
 | 6B Imports & verification | CSV stage/validate/preview/commit, duplicate detection, error report, export with formula-injection guard, review queue, correction form. Journey E                                                                                                                                               | —        |
@@ -17,6 +17,45 @@
 Order of work inside each stage: schema/service → tests → UI → e2e journey → gate.
 
 ---
+
+## Stage 3 — gate run 2026-11-19
+
+### Done and verified
+
+| Check                                                                 | Command                                                                   | Result                            |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------- | --------------------------------- |
+| Typecheck / lint / formatting                                         | `pnpm typecheck`, `pnpm lint`, `pnpm format:check`                        | pass                              |
+| Unit tests                                                            | `pnpm test:unit`                                                          | 77 passed                         |
+| Integration tests (real PostgreSQL 16.15, seeded)                     | `pnpm test:integration`                                                   | 69 passed                         |
+| E2E — Journey A + catalogue + smoke, desktop **and** mobile (Pixel 7) | `pnpm e2e`                                                                | 28 passed                         |
+| Migrations from scratch + seed ×3                                     | `pnpm db:migrate:fresh && pnpm db:seed` ×3                                | runs 2–3: no changes              |
+| Manual route sweep on a production build                              | `curl` over 27 URLs                                                       | expected 200 / 308 / 404 for each |
+| Visual check vs. the 1a board                                         | Playwright screenshots: home, category, PDP (desktop), PDP (390 px, dark) | matches; no horizontal scroll     |
+
+Built and covered by tests:
+
+- **Header:** Categories mega-menu (counts include subcategories), Products, Brands, Guides, search with suggestions, **market selector** (`market` cookie via a server action, ALL by default, never geo-detected), theme toggle; accessible mobile sheet (44 px targets).
+- **Homepage:** hero + prominent search, live index counts, categories, featured products, recently added, brands by product count, latest guides. Sections without data are omitted.
+- **Catalogue `/products`:** search, category, brand, status, price (single-currency market only) filters; sort newest/name/release date/lowest price; crawlable `?page=` pagination (≤ 48).
+- **Category pages:** intro, subcategories, **filters generated from filterable definitions incl. inherited** (numeric ranges in canonical units with observed min/max, options, yes/no), results include subcategories, brands in category, related guides; filtered URLs `noindex, follow` + canonical; empty form fields redirect to clean URLs.
+- **Brand pages:** monogram (no licensed logo), overview, origin, website, categories, families, latest and discontinued models.
+- **Product pages:** breadcrumbs (category path › brand › product), model number, dates, status, verification badge → policy, image placeholder, summary, **variant selector (`?variant=`) with variant overrides**, key specs, full grouped `<table>` with `th scope` and **"Not available"** distinct from "No", per-value "unverified" marks, derived predecessor + successor, alternatives, permitted manufacturer links, data sources + required-spec coverage, related guides. Drafts/archived → 404; wrong brand slug and old slugs → permanent redirect.
+- **Search:** `SearchService` interface + Postgres implementation — exact model/MPN/GTIN first (GTIN links to the variant), prefix full-text, trigram fuzzy; separate brand and category groups; highlighting; "did you mean"; empty state with categories; `noindex, follow`. `/api/search/suggest`: ≤ 8 products, debounced client combobox with ARIA listbox and keyboard support, **rate-limited** (Postgres fixed window, hashed client key).
+- **Guides:** index and detail, sanitised Markdown (no raw HTML), linked products and categories.
+- **Static pages:** About, Affiliate disclosure (stale threshold read from `OFFER_STALE_HOURS`), Data & verification policy, Privacy; linked from the footer.
+- **Filter queries tested:** numeric range (incl. variant values), enum any-of, multi-select, boolean yes/no (missing ≠ No), inherited filters on a child category, brand + status + text, pagination ordering, price filter and price sort per market, stale/expired/out-of-stock excluded from "lowest price".
+
+### Done but not verified
+
+- Docker Compose database — still blocked by the Docker Hub rate limit here (see Stage 1+2).
+- No automated accessibility audit yet (axe is Stage 7); keyboard paths for search, menus and filters were exercised by e2e.
+
+### Deferred (by design — see D32)
+
+- Compare link, card compare toggles, featured comparisons (homepage, brand page) → **Stage 4**.
+- Offer list on product pages, `/go/[offerId]`, click recording → **Stage 5**. Cards already show the lowest fresh offer (text only).
+- Suggest a correction → Stage 6B. Product images and brand logos → uploads in Stage 6A.
+- ISR / on-demand revalidation and `EXPLAIN` review of search and filter queries → Stage 7 (D29, D31).
 
 ## Stage 1 + 2 — gate run 2026-11-19
 

@@ -176,14 +176,25 @@ export async function getEffectiveDefinitions(
   db: DbOrTx,
   categoryId: string,
 ): Promise<EffectiveDefinition[]> {
+  return (await getEffectiveDefinitionsForCategories(db, [categoryId])).get(categoryId) ?? [];
+}
+
+/** Effective definitions for several categories in one recursive query (no N+1 on listing pages). */
+export async function getEffectiveDefinitionsForCategories(
+  db: DbOrTx,
+  categoryIds: string[],
+): Promise<Map<string, EffectiveDefinition[]>> {
+  const out = new Map<string, EffectiveDefinition[]>(categoryIds.map((id) => [id, []]));
+  if (categoryIds.length === 0) return out;
   const rows = await db.execute(sql`
     WITH RECURSIVE chain AS (
-      SELECT id, parent_id, 0 AS depth FROM categories WHERE id = ${categoryId}
+      SELECT id AS root_id, id, parent_id, 0 AS depth FROM categories WHERE id = ANY(${sql.param(categoryIds)}::uuid[])
       UNION ALL
-      SELECT c.id, c.parent_id, chain.depth + 1 FROM categories c JOIN chain ON c.id = chain.parent_id
+      SELECT chain.root_id, c.id, c.parent_id, chain.depth + 1 FROM categories c JOIN chain ON c.id = chain.parent_id
       WHERE chain.depth < 8
     )
-    SELECT d.id, d.category_id, d.group_id, d.key, d.name, d.description, d.data_type, d.canonical_unit,
+    SELECT chain.root_id,
+           d.id, d.category_id, d.group_id, d.key, d.name, d.description, d.data_type, d.canonical_unit,
            d.display_order, d.is_filterable, d.is_comparable, d.is_required, d.is_public,
            d.comparison_direction, d.validation_rules, d.created_at, d.updated_at,
            g.key AS group_key, g.name AS group_name, coalesce(g.display_order, 9999) AS group_order,
@@ -191,8 +202,13 @@ export async function getEffectiveDefinitions(
     FROM chain
     JOIN specification_definitions d ON d.category_id = chain.id
     LEFT JOIN specification_groups g ON g.id = d.group_id
-    ORDER BY group_order, g.key NULLS LAST, chain.depth DESC, d.display_order, d.key`);
-  return rows.map((r) => ({
+    ORDER BY chain.root_id, group_order, g.key NULLS LAST, chain.depth DESC, d.display_order, d.key`);
+  for (const r of rows) out.get(r.root_id as string)?.push(toEffectiveDefinition(r));
+  return out;
+}
+
+function toEffectiveDefinition(r: Record<string, unknown>): EffectiveDefinition {
+  return {
     id: r.id as string,
     categoryId: r.category_id as string,
     groupId: (r.group_id as string | null) ?? null,
@@ -214,7 +230,7 @@ export async function getEffectiveDefinitions(
     groupName: (r.group_name as string | null) ?? null,
     groupOrder: Number(r.group_order),
     inheritedDepth: Number(r.inherited_depth),
-  }));
+  };
 }
 
 export interface SetSpecificationInput {

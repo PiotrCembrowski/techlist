@@ -18,10 +18,12 @@ test.describe("Stage 1 smoke", () => {
     await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
   });
 
-  test("theme toggle switches to dark mode", async ({ page }) => {
+  test("theme toggle switches to dark mode", async ({ page, isMobile }) => {
     await page.emulateMedia({ colorScheme: "light" });
     await page.goto("/");
     await expect(page.locator("html")).not.toHaveClass(/dark/);
+    // On phones the toggle lives in the menu sheet.
+    if (isMobile) await page.getByRole("button", { name: "Open menu" }).click();
     await page.getByRole("button", { name: "Switch between light and dark theme" }).click();
     await expect(page.locator("html")).toHaveClass(/dark/);
     await expect(page.locator("body")).toHaveCSS("background-color", "rgb(29, 31, 32)");

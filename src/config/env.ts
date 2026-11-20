@@ -22,8 +22,16 @@ export const envSchema = z.object({
   /** A new/changed offer price deviating more than this from the median current price (same product + currency) is queued for review. 0.5 = 50%. */
   SUSPICIOUS_PRICE_DEVIATION: z.coerce.number().positive().max(10).default(0.5),
   DB_POOL_MAX: z.coerce.number().int().positive().max(100).default(10),
-  // Required from Stage 6A (admin auth). Optional until then, but if set it must be strong.
-  AUTH_SECRET: z.string().min(32, "AUTH_SECRET must be at least 32 characters").optional(),
+  /** Auth.js secret for admin sessions (generate with `openssl rand -base64 32`). */
+  AUTH_SECRET: z.string().min(32, "AUTH_SECRET must be at least 32 characters"),
+  /** Uploaded images: "local" (development, STORAGE_LOCAL_DIR) or "s3" (any S3-compatible store). */
+  STORAGE_DRIVER: z.enum(["local", "s3"]).default("local"),
+  STORAGE_LOCAL_DIR: z.string().min(1).default("storage/uploads"),
+  S3_BUCKET: z.string().optional(),
+  S3_REGION: z.string().optional(),
+  S3_ENDPOINT: z.url().optional(),
+  S3_ACCESS_KEY_ID: z.string().optional(),
+  S3_SECRET_ACCESS_KEY: z.string().optional(),
 });
 // SITE_URL defaults to localhost so local production builds (`next build`, e2e) work; deployments
 // must set it (documented in .env.example and the README).

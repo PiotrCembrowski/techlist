@@ -8,6 +8,7 @@ import { OfferList } from "@/components/offers/offer-list";
 import { DemoTag } from "@/components/product/demo-tag";
 import { ImagePlaceholder } from "@/components/product/image-placeholder";
 import { ProductGrid } from "@/components/product/product-card";
+import { ProductGallery } from "@/components/product/product-gallery";
 import { SpecTable } from "@/components/product/spec-table";
 import { VerificationBadge } from "@/components/product/verification-badge";
 import { Blueprint } from "@/components/ui/blueprint";
@@ -140,11 +141,15 @@ export default async function ProductPage(props: Props) {
       <div className="grid gap-8 lg:grid-cols-12">
         <div className="lg:col-span-5">
           <Blueprint className="overflow-visible">
-            <ImagePlaceholder
-              icon={category?.icon}
-              className="aspect-square"
-              iconClassName="size-16"
-            />
+            {d.images.length ? (
+              <ProductGallery key={current?.id ?? "product"} images={d.images} />
+            ) : (
+              <ImagePlaceholder
+                icon={category?.icon}
+                className="aspect-square"
+                iconClassName="size-16"
+              />
+            )}
           </Blueprint>
         </div>
 

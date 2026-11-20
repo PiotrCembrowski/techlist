@@ -13,6 +13,7 @@ import { getCatalogOptions } from "@/lib/catalog-context";
 import { getDb } from "@/lib/db";
 import { marketName } from "@/lib/format";
 import { getBrandPageData } from "@/modules/catalog/pages";
+import { mediaUrl } from "@/modules/media/public";
 import { getProductCards } from "@/modules/catalog/service";
 import { listFeaturedComparisons } from "@/modules/comparisons/service";
 
@@ -57,16 +58,27 @@ export default async function BrandPage({ params }: Props) {
           ]}
         />
         <div className="grid gap-8 md:grid-cols-[160px_minmax(0,1fr)]">
-          {/* No licensed logo yet: a neutral monogram plate, labelled as such. */}
-          <Blueprint
-            className="flex aspect-square items-center justify-center bg-muted"
-            role="img"
-            aria-label={`${brand.name}: no licensed logo`}
-          >
-            <span className="font-heading text-5xl font-semibold tracking-[0.04em] text-muted-foreground">
-              {monogram}
-            </span>
-          </Blueprint>
+          {brand.logoImageKey ? (
+            <Blueprint className="flex aspect-square items-center justify-center bg-background p-6">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={mediaUrl(brand.logoImageKey)}
+                alt={`${brand.name} logo`}
+                className="max-h-full max-w-full object-contain"
+              />
+            </Blueprint>
+          ) : (
+            /* No licensed logo yet: a neutral monogram plate, labelled as such. */
+            <Blueprint
+              className="flex aspect-square items-center justify-center bg-muted"
+              role="img"
+              aria-label={`${brand.name}: no licensed logo`}
+            >
+              <span className="font-heading text-5xl font-semibold tracking-[0.04em] text-muted-foreground">
+                {monogram}
+              </span>
+            </Blueprint>
+          )}
           <div className="flex flex-col gap-4">
             <div className="flex items-center gap-3">
               <span className="text-xs font-medium tracking-[0.12em] text-primary uppercase">

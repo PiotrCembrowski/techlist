@@ -3,15 +3,25 @@ import { parseEnv } from "@/config/env";
 import { redact } from "@/modules/audit/service";
 import { onlyProvided } from "@/modules/_shared/patch";
 
+const SECRET = "x".repeat(32);
+
 describe("env", () => {
   it("applies defaults and parses booleans", () => {
-    const env = parseEnv({ DATABASE_URL: "postgres://u:p@localhost/db", ENABLE_DEMO_DATA: "true" });
+    const env = parseEnv({
+      DATABASE_URL: "postgres://u:p@localhost/db",
+      ENABLE_DEMO_DATA: "true",
+      AUTH_SECRET: SECRET,
+    });
     expect(env.OFFER_STALE_HOURS).toBe(72);
     expect(env.ENABLE_DEMO_DATA).toBe(true);
     expect(env.ALLOW_DEMO_SEED).toBe(false);
   });
   it("fails fast with a readable message", () => {
     expect(() => parseEnv({})).toThrow(/DATABASE_URL/);
+    expect(() => parseEnv({ DATABASE_URL: "postgres://x" })).toThrow(/AUTH_SECRET/);
+    expect(() =>
+      parseEnv({ DATABASE_URL: "postgres://x", AUTH_SECRET: SECRET, STORAGE_DRIVER: "ftp" }),
+    ).toThrow(/STORAGE_DRIVER/);
     expect(() => parseEnv({ DATABASE_URL: "mysql://x" })).toThrow(/postgres/);
     expect(() => parseEnv({ DATABASE_URL: "postgres://x", OFFER_STALE_HOURS: "-1" })).toThrow(
       /OFFER_STALE_HOURS/,

@@ -66,18 +66,36 @@ export function ProductCard({
   const status = STATUS_LABEL[card.productStatus];
   return (
     <Blueprint as="article" className="group flex h-full flex-col bg-background">
-      <ImagePlaceholder
-        icon={card.category.icon}
-        className="aspect-[4/3] border-b"
-        iconClassName="size-10"
-      >
-        {card.isDemo ? <DemoTag className="absolute top-2.5 left-2.5" /> : null}
-        {status ? (
-          <span className="absolute top-2.5 right-2.5 border bg-background px-2 py-px text-[11px] text-foreground">
-            {status}
-          </span>
-        ) : null}
-      </ImagePlaceholder>
+      {card.image ? (
+        <div className="relative flex aspect-[4/3] items-center justify-center border-b bg-background p-3">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={card.image.src}
+            alt={card.image.alt}
+            loading="lazy"
+            className="max-h-full max-w-full object-contain"
+          />
+          {card.isDemo ? <DemoTag className="absolute top-2.5 left-2.5" /> : null}
+          {status ? (
+            <span className="absolute top-2.5 right-2.5 border bg-background px-2 py-px text-[11px] text-foreground">
+              {status}
+            </span>
+          ) : null}
+        </div>
+      ) : (
+        <ImagePlaceholder
+          icon={card.category.icon}
+          className="aspect-[4/3] border-b"
+          iconClassName="size-10"
+        >
+          {card.isDemo ? <DemoTag className="absolute top-2.5 left-2.5" /> : null}
+          {status ? (
+            <span className="absolute top-2.5 right-2.5 border bg-background px-2 py-px text-[11px] text-foreground">
+              {status}
+            </span>
+          ) : null}
+        </ImagePlaceholder>
+      )}
       <div className="flex flex-1 flex-col gap-2 p-4">
         <span className="text-[11px] font-medium tracking-[0.1em] text-primary uppercase">
           {card.brand.name} · {card.category.name}

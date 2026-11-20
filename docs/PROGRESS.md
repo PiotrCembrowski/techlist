@@ -9,14 +9,47 @@
 | 3 Public catalog          | Header nav + market selector (cookie), homepage sections, `/products`, `/categories/[slug]` with filters generated from definitions, brand pages, PDP with variants and grouped spec table, search (`SearchService`: exact model/MPN/GTIN → FTS → trigram) + suggestions, static pages. Journey A | **Done** |
 | 4 Comparison              | Tray (localStorage), picker, `compareProducts()`, canonical `-vs-` URLs (301), responsive table. Journey B                                                                                                                                                                                        | **Done** |
 | 5 Offers & affiliate      | Fresh/stale/expired rules, market grouping, `/go/[offerId]` with host allowlist, clicks, price-history writes. Journey C                                                                                                                                                                          | **Done** |
-| 6A Admin core             | Auth.js credentials + argon2id, `admin:create`, Postgres rate limiter, role checks in every action, CRUD, audit log. Journey D                                                                                                                                                                    | Next     |
-| 6B Imports & verification | CSV stage/validate/preview/commit, duplicate detection, error report, export with formula-injection guard, review queue, correction form. Journey E                                                                                                                                               | —        |
+| 6A Admin core             | Auth.js credentials + argon2id, `admin:create`, Postgres rate limiter, role checks in every action, CRUD, audit log. Journey D                                                                                                                                                                    | **Done** |
+| 6B Imports & verification | CSV stage/validate/preview/commit, duplicate detection, error report, export with formula-injection guard, review queue, correction form. Journey E                                                                                                                                               | Next     |
 | 7 SEO & quality           | Metadata, JSON-LD, indexability function, sitemap/robots, slug 301s, axe, security headers/CSP                                                                                                                                                                                                    | —        |
 | 8 Final                   | Full suite, mobile e2e, all docs, acceptance checklist                                                                                                                                                                                                                                            | —        |
 
 Order of work inside each stage: schema/service → tests → UI → e2e journey → gate.
 
 ---
+
+## Stage 6A — gate run 2026-11-20
+
+### Done and verified
+
+| Check                                                          | Command                                                                        | Result                                    |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------ | ----------------------------------------- |
+| Typecheck / lint / formatting                                  | `pnpm typecheck`, `pnpm lint`, `pnpm format:check`                             | pass                                      |
+| Unit tests                                                     | `pnpm test:unit`                                                               | 115 passed                                |
+| Integration tests (real PostgreSQL 16.15)                      | `pnpm test:integration`                                                        | 112 passed                                |
+| E2E — Journeys A–D + catalogue + smoke; desktop **and** mobile | `pnpm e2e`                                                                     | 54 passed                                 |
+| Migrations from scratch + seed ×3                              | `pnpm db:migrate:fresh && pnpm db:seed` ×3                                     | runs 2–3: no changes                      |
+| `pnpm admin:create`                                            | hidden prompt and stdin                                                        | creates an owner; refuses short passwords |
+| Visual check                                                   | dashboard, categories (list + editor), offers (stale filter), audit log, users | 1a admin styling; tables intact           |
+
+Built and covered by tests:
+
+- **Auth:** Auth.js v5 credentials login/logout, argon2id, 8 h JWT session, `requireAdmin()` re-checks the user in the database on every request (deactivation is immediate), owner-only user management, login rate limit (5 per 15 min per IP + email, every attempt counts), generic failure message, no registration and no default credentials (`pnpm admin:create`).
+- **Every admin action is guarded:** an integration test discovers all admin `actions.ts` modules and asserts each export redirects anonymous, deleted and deactivated users without writing anything; editors are refused on owner-only actions. Journey D requests all 22 admin pages anonymously and expects 307 → `/admin/login`.
+- **Screens:** dashboard (counts, stale offers, review items, recent imports, recent audit entries); products (list with filters, create, edit, publish/unpublish/archive/delete draft, verification status, variants, specification editor with variant scope and verified-value protection, images, relationships, source records, manufacturer links); brands (with duplicate warning and logo upload); categories (tree, parent, SEO, spec groups, definitions with type/unit locking); retailers (exact redirect hosts, currencies); offers (all / stale / expired / inactive, per product, create, edit, "mark as checked now", price history, suspicious-price note); sources (licence, usage permitted); users (owner only); audit log (filters, field-level changes).
+- **Uploads:** local and S3-compatible storage drivers, magic-byte checks, no SVG, 5 MB limit, random keys, `/media` route with safe headers. Public product galleries, card thumbnails and brand logos show only images whose source permits use.
+- **Journey D** (desktop + mobile): log in → create product → add variant → add specs (units converted) → add source → publish → public page shows name, summary, specs and source → log out → admin URLs redirect to login. Wrong password → generic message.
+
+### Done but not verified
+
+- `S3StorageDriver` — written against the AWS SDK v3 API but not run: no bucket or credentials exist in this environment (rule 2.1.10).
+- Docker Compose database — still blocked by the Docker Hub rate limit in this environment.
+
+### Deferred
+
+- Review queue screens, CSV import/export, correction form → **Stage 6B**.
+- Image resizing/thumbnails (originals are served, ≤ 5 MB) → later, if measured page weight needs it.
+- One intermittent integration failure seen once during the gate and not reproduced in 12 later runs. The likely cause (the rate-limit test's fixed past clock colliding with the limiter's random pruning) is fixed.
 
 ## Stage 5 — gate run 2026-11-20
 
@@ -47,7 +80,7 @@ Built and covered by tests:
 
 ### Deferred
 
-- Offer CRUD screens, stale/expired offer lists and "mark as checked now" button → **Stage 6A** (the services exist and are tested).
+- Offer CRUD screens, stale/expired offer lists and "mark as checked now" button → **Stage 6A** (done).
 - Resolving `suspicious_price` review items → Stage 6B (review queue).
 - Offer JSON-LD (fresh, non-demo, in-market only) → Stage 7.
 

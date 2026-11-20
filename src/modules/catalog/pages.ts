@@ -181,6 +181,7 @@ export interface BrandPageData {
     description: string | null;
     officialWebsiteUrl: string | null;
     countryOfOrigin: string | null;
+    logoImageKey: string | null;
     isDemo: boolean;
   };
   categories: { slug: string; name: string; productCount: number }[];
@@ -203,8 +204,9 @@ export async function getBrandPageData(
     country_of_origin: string | null;
     is_demo: boolean;
     is_active: boolean;
+    logo_image_key: string | null;
   }>(
-    sql`SELECT id, slug, name, description, official_website_url, country_of_origin, is_demo, is_active FROM brands WHERE slug = ${slug}`,
+    sql`SELECT id, slug, name, description, official_website_url, country_of_origin, is_demo, is_active, logo_image_key FROM brands WHERE slug = ${slug}`,
   );
   if (!brand || !brand.is_active) {
     const to = await resolveSlugRedirect(db, "brand", slug);
@@ -236,6 +238,7 @@ export async function getBrandPageData(
         description: brand.description,
         officialWebsiteUrl: brand.official_website_url,
         countryOfOrigin: brand.country_of_origin,
+        logoImageKey: brand.logo_image_key,
         isDemo: brand.is_demo,
       },
       categories: categories.map((c) => ({

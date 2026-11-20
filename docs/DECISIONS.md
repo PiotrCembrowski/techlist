@@ -269,3 +269,49 @@ One entry per non-obvious engineering decision: **decision**, **reason**, **alte
 ### D45. robots.ts added in Stage 5
 
 - **Decision:** `robots.txt` (disallow `/admin`, `/api`, `/go`, `/search`) ships now because `/go/` exists; the sitemap and indexability rules remain Stage 7.
+
+### D46. Auth.js v5 credentials with JWT sessions, re-checked in the database
+
+- **Decision:** Auth.js (`next-auth@5` beta) with the Credentials provider only, argon2id hashes (`@node-rs/argon2`), JWT session cookie (HTTP-only, SameSite=Lax, Secure on https, 8 h). Every admin page, Server Action and route handler calls `requireAdmin()`, which re-loads the user and requires `is_active`. No registration and no default credentials; the first owner comes from `pnpm admin:create` (password from a hidden prompt or stdin, never an argument). Unknown emails run a dummy hash so timing does not reveal which accounts exist.
+- **Reason:** SPEC §9/§13. JWT sessions need no session table, and the database re-check makes deactivation take effect on the very next request.
+- **Alternatives:** Database sessions (an extra table and adapter for no gain here); a custom session cookie (more security-sensitive code to own).
+
+### D47. Authorization lives in the action wrapper, not in middleware
+
+- **Decision:** `adminAction(handler, { role })` runs `requireAdmin` before the handler on every call. The admin layout also calls it, and so does every page (layouts don't run for Server Action POSTs). There is no `middleware.ts` auth gate. Owner-only actions (user management) pass `role: "owner"`. An integration test imports every `actions.ts` under `src/app/admin` (except the login action) and asserts that each export redirects to `/admin/login` with no session, and to `?reason=inactive` for deleted or deactivated users, with no audit rows written.
+- **Reason:** Server Actions are public POST endpoints; checking inside each one is the only check that cannot be bypassed by calling the action directly. The discovery-based test fails if a new action module is added without the wrapper.
+
+### D48. Login rate limit counts every attempt
+
+- **Decision:** `checkCredentials()` consumes the Postgres rate limiter (5 per 15 min, key = hash of client address + email) **before** verifying the password, so correct and incorrect attempts count alike. A limited attempt shows "Too many sign-in attempts"; any other failure shows one generic message.
+- **Reason:** SPEC §13. Counting before verifying stops the limiter from revealing which passwords are correct.
+
+### D49. Admin routes in `app/admin`, public pages in the `(public)` route group
+
+- **Decision:** Public pages moved into `src/app/(public)/` with their own layout (header, footer, demo banner, compare tray). The admin has a separate shell (`admin/(panel)/layout.tsx`) and `/admin/login` stands alone. `/admin/*` responses carry `X-Frame-Options: DENY`, `frame-ancestors 'none'` and `X-Robots-Tag: noindex, nofollow`; the metadata is `noindex`.
+- **Reason:** The public chrome (compare tray, market selector) does not belong in the admin; route groups keep URLs unchanged.
+
+### D50. Uploaded files only, behind a storage driver
+
+- **Decision:** `StorageDriver` with `local` (default, `STORAGE_LOCAL_DIR`) and `s3` (any S3-compatible service; SDK loaded lazily) drivers. Keys are generated (`products|brands/<uuid>.<ext>`) and validated on every operation; local writes never overwrite. Uploads must be ≤ 5 MB, and the magic bytes must say JPEG, PNG or WebP and agree with the declared MIME type. SVG is refused (XSS). Files are served by `/media/[...key]` with `nosniff`, `default-src 'none'` and immutable caching. Product images require alt text and a licence note; hotlinking is not possible because images have no URL field.
+- **Reason:** SPEC §13 and rule 2.1.9.
+
+### D51. Which images are public
+
+- **Decision:** An image is shown publicly (product gallery, card thumbnail) only when it has no source or its source has `usage_permitted = true`. Cards show the product-level primary image; the product page shows product images plus the selected variant's. Brand logos replace the monogram plate when uploaded.
+- **Reason:** Rule 2.1.9: we never assume redistribution rights, even after an upload.
+
+### D52. Admin forms
+
+- **Decision:** Plain Server Action forms with one small client wrapper (`ActionForm`) that submits through `useActionState` but prevents React 19's automatic form reset, so typed values survive validation errors. Field errors come from `ValidationError.issues` (path → message). Hints are linked with `aria-describedby`, so accessible names stay short, and the required asterisk is `aria-hidden` (the `required` attribute is announced). Destructive actions ask for confirmation and are re-validated on the server.
+- **Reason:** Accessible, no client state library, works with the service layer as-is.
+
+### D53. Specification editor semantics
+
+- **Decision:** One form per scope (product, or one variant's overrides). Non-empty fields go through `setSpecificationValue` (unit parsing → canonical unit). Emptying a field that had a value clears it. "Mark verified" applies only to values changed in this save, together with the chosen source. A verified value is never overwritten by unverified input: a review item is created instead, and the save message says so. A definition's type and unit cannot change once values exist.
+- **Reason:** Rules 2.1.6–2.1.8.
+
+### D54. Admin e2e runs after the public e2e
+
+- **Decision:** Journey D runs in `admin-desktop` / `admin-mobile` Playwright projects that depend on the public projects. The e2e admin is created in global setup with a test-only password from `tests/e2e/fixtures.ts`.
+- **Reason:** Journey D publishes a product; the public specs assert exact counts against the seed.

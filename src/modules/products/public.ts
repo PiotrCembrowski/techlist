@@ -3,6 +3,7 @@ import { products, productSpecifications } from "@/db/schema";
 import type { DbOrTx } from "@/lib/db";
 import { formatSpecValue } from "@/lib/format";
 import type { PageLookup } from "@/modules/catalog/pages";
+import { getProductGallery, type PublicImage } from "@/modules/media/public";
 import { productHref } from "@/modules/catalog/service";
 import { getCategoryAncestors, type Category } from "@/modules/categories/service";
 import { listGuidesForProduct, type GuideSummary } from "@/modules/guides/service";
@@ -65,6 +66,7 @@ export interface ProductPageData {
   links: { type: string; url: string }[];
   sources: DataSourceSummary[];
   guides: GuideSummary[];
+  images: PublicImage[];
 }
 
 function withVariant(path: string, variant: string | null | undefined) {
@@ -131,7 +133,7 @@ export async function loadProductPage(
   const selectedVariant =
     (variantCode && variants.find((v) => v.variantCode === variantCode)) || null;
 
-  const [chain, defs, specRows, rels, links, sources] = await Promise.all([
+  const [chain, defs, specRows, rels, links, sources, images] = await Promise.all([
     getCategoryAncestors(db, product.categoryId),
     getEffectiveDefinitions(db, product.categoryId),
     db
@@ -187,6 +189,7 @@ export async function loadProductPage(
         UNION SELECT source_id FROM product_specifications WHERE product_id = ${product.id} AND source_id IS NOT NULL
       )
       GROUP BY s.id ORDER BY s.source_name LIMIT 20`),
+    getProductGallery(db, product.id, selectedVariant?.id ?? null),
   ]);
 
   const resolved = resolveVariantOverrides(defs, specRows, selectedVariant?.id ?? null);
@@ -245,6 +248,7 @@ export async function loadProductPage(
         retrievedAt: s.retrieved_at ? new Date(s.retrieved_at) : null,
         isDemo: s.is_demo,
       })),
+      images,
       guides,
     },
   };

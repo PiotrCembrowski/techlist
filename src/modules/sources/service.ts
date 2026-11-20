@@ -1,11 +1,12 @@
-import { eq, sql } from "drizzle-orm";
+import { asc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { sources } from "@/db/schema";
 import type { DbOrTx } from "@/lib/db";
 import { optionalText } from "@/lib/validation";
 import { recordAudit } from "@/modules/audit/service";
 import { inTransaction, type ServiceContext } from "@/modules/_shared/context";
-import { parseOrThrow, rethrowDbError } from "@/modules/_shared/errors";
+import { NotFoundError, parseOrThrow, rethrowDbError } from "@/modules/_shared/errors";
+import { onlyProvided } from "@/modules/_shared/patch";
 
 export type Source = typeof sources.$inferSelect;
 
@@ -63,4 +64,38 @@ export async function getSourceByName(db: DbOrTx, name: string): Promise<Source 
     .where(sql`lower(${sources.sourceName}) = lower(${name})`)
     .limit(1);
   return row ?? null;
+}
+
+export async function updateSource(
+  ctx: ServiceContext,
+  id: string,
+  patch: Partial<z.input<typeof sourceInputSchema>>,
+): Promise<Source> {
+  const data = onlyProvided(
+    parseOrThrow(sourceInputSchema.partial(), patch, "Invalid source"),
+    patch,
+  );
+  try {
+    return await inTransaction(ctx, async (tx) => {
+      const [before] = await tx.select().from(sources).where(eq(sources.id, id)).for("update");
+      if (!before) throw new NotFoundError("Source", id);
+      if (Object.keys(data).length === 0) return before;
+      const [row] = await tx.update(sources).set(data).where(eq(sources.id, id)).returning();
+      await recordAudit(tx, {
+        actorId: ctx.actorId,
+        entityType: "source",
+        entityId: id,
+        action: "update",
+        previous: before,
+        next: row,
+      });
+      return row!;
+    });
+  } catch (e) {
+    rethrowDbError(e);
+  }
+}
+
+export async function listSources(db: DbOrTx): Promise<Source[]> {
+  return db.select().from(sources).orderBy(asc(sources.sourceName)).limit(500);
 }

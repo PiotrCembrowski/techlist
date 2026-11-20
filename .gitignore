@@ -11,5 +11,5 @@ coverage
 test-results
 playwright-report
 blob-report
-storage/uploads
+storage/
 .DS_Store

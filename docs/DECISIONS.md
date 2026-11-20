@@ -236,3 +236,36 @@ One entry per non-obvious engineering decision: **decision**, **reason**, **alte
 
 - **Decision:** `/api/compare/search?q=&category=` reuses the catalogue query (name, model number, fuzzy) scoped to one category tree, ≤ 8 results, rate-limited (60/min per hashed client).
 - **Reason:** "Add product" must offer only products that can be compared.
+
+## 2026-11-20 — Stage 5
+
+### D40. Offer ordering and grouping
+
+- **Decision:** Within a market: in stock → pre-order → unknown → out of stock, then currency, then price, then retailer name. The selected market comes first; other markets are grouped under a collapsed "Other markets" `<details>`, each with its market labelled. With "All markets", every market is its own group and nothing is collapsed. Stale offers (older than `OFFER_STALE_HOURS`) follow fresh ones in each market, under a "price last checked N days ago, may have changed" warning, with a "Check price" link. Expired/inactive offers and offers from inactive retailers are never shown.
+- **Reason:** SPEC §5.2/§7.6. Buyable offers first is more useful than a cheap out-of-stock listing; amounts in different currencies are never ranked against each other. The affiliate disclosure says exactly this.
+- **Alternatives:** Pure price order (puts unbuyable offers on top).
+
+### D41. Variant-specific offers
+
+- **Decision:** With `?variant=`, the page shows that variant's offers plus offers not tied to any variant; without it, all offers, each labelled with its variant.
+- **Reason:** SPEC §7.6 item 6 (offers update with the variant) without hiding offers on the default view.
+
+### D42. `/go/[offerId]` details
+
+- **Decision:** Route handler: UUID check → offer active, unexpired, retailer active, product published, demo only with `ENABLE_DEMO_DATA` → target = `affiliate_url ?? product_url`, which must be `https`, without credentials or a non-443 port, and whose hostname must match an `allowed_redirect_hosts` entry exactly (case-insensitive, trailing dot ignored; **no** subdomain or suffix matching). Any refusal is a plain 404; misconfigured hosts/URLs also log a structured warning with the offer id only. Success: insert `affiliate_clicks` (market from cookie if valid, referrer **host** only, UA-keyword bot flag; no IP/UA stored) then `302` with `Cache-Control: no-store`, `Referrer-Policy: strict-origin-when-cross-origin`, `X-Robots-Tag: noindex, nofollow`. `HEAD` returns 405 so link checkers and previews never count as clicks. Links are plain `<a rel="sponsored nofollow noopener" target="_blank">` (no prefetch).
+- **Reason:** SPEC §11; no open redirect is possible because nothing from the request is used as a target.
+- **Alternatives:** Wildcard host patterns (too easy to misconfigure into an open redirect).
+
+### D43. Offer write rules enforced at write time too
+
+- **Decision:** `createRetailerOffer` / `updateRetailerOffer` validate currency ∈ retailer's supported currencies, variant ∈ product, and that `product_url` / `affiliate_url` would pass the redirect validation. Price history is appended (never updated) on creation and on every price or currency change; "mark as checked now" doesn't add history. Money is normalised to `numeric(14,4)` strings.
+- **Reason:** Catch bad data when it is entered rather than as a 404 at click time.
+
+### D44. Suspicious prices
+
+- **Decision:** On create and on price change, if the price deviates more than `SUSPICIOUS_PRICE_DEVIATION` (env, default 0.5 = 50%) from the median of the product's other fresh, active offers in the same currency, a `suspicious_price` review item is created. The offer is still saved (an admin decides in the review queue, Stage 6B).
+- **Reason:** SPEC §5.2 review_items. Blocking the write would lose legitimate clearance prices.
+
+### D45. robots.ts added in Stage 5
+
+- **Decision:** `robots.txt` (disallow `/admin`, `/api`, `/go`, `/search`) ships now because `/go/` exists; the sitemap and indexability rules remain Stage 7.

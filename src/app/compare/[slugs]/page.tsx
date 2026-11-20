@@ -120,6 +120,20 @@ function OfferCell({ p, market }: { p: ComparedProduct; market: string }) {
         <span className="text-xs text-muted-foreground">
           lowest of {o.offerCount} in {market}
         </span>
+        {o.offerId ? (
+          <a
+            href={`/go/${o.offerId}`}
+            rel="sponsored nofollow noopener"
+            target="_blank"
+            className="mt-1 inline-flex w-fit items-center gap-1 text-[13px] font-medium text-primary"
+          >
+            Go to retailer
+            <span className="sr-only">
+              {" "}
+              for {p.brand.name} {p.name} (opens in a new tab)
+            </span>
+          </a>
+        ) : null}
       </span>
     );
   return <td className="border-r border-b px-4 py-3 align-top">{content}</td>;
@@ -223,11 +237,16 @@ export default async function ComparisonPage({ params }: Props) {
       </div>
       <div className="flex flex-wrap items-center justify-between gap-3 border-y py-2">
         <DifferencesToggle targetId="comparison" />
-        {market !== "ALL" ? (
-          <span className="text-sm text-muted-foreground">
-            Prices for {marketName(market)}, in each retailer&rsquo;s currency
-          </span>
-        ) : null}
+        <span className="max-w-[640px] text-xs text-muted-foreground sm:text-right">
+          {market !== "ALL" ? (
+            <>Prices for {marketName(market)}, in each retailer&rsquo;s currency. </>
+          ) : null}
+          Retailer links may earn us a commission; it never changes which offers we list or their
+          order.{" "}
+          <Link href="/affiliate-disclosure" className="text-primary">
+            Disclosure
+          </Link>
+        </span>
       </div>
 
       <div

@@ -8,8 +8,8 @@
 | 2 Database                | Full schema + migrations, unit registry, services for brands/categories/products/variants/specifications, integration tests, idempotent seed                                                                                                                                                      | **Done** |
 | 3 Public catalog          | Header nav + market selector (cookie), homepage sections, `/products`, `/categories/[slug]` with filters generated from definitions, brand pages, PDP with variants and grouped spec table, search (`SearchService`: exact model/MPN/GTIN → FTS → trigram) + suggestions, static pages. Journey A | **Done** |
 | 4 Comparison              | Tray (localStorage), picker, `compareProducts()`, canonical `-vs-` URLs (301), responsive table. Journey B                                                                                                                                                                                        | **Done** |
-| 5 Offers & affiliate      | Fresh/stale/expired rules, market grouping, `/go/[offerId]` with host allowlist, clicks, price-history writes. Journey C                                                                                                                                                                          | Next     |
-| 6A Admin core             | Auth.js credentials + argon2id, `admin:create`, Postgres rate limiter, role checks in every action, CRUD, audit log. Journey D                                                                                                                                                                    | —        |
+| 5 Offers & affiliate      | Fresh/stale/expired rules, market grouping, `/go/[offerId]` with host allowlist, clicks, price-history writes. Journey C                                                                                                                                                                          | **Done** |
+| 6A Admin core             | Auth.js credentials + argon2id, `admin:create`, Postgres rate limiter, role checks in every action, CRUD, audit log. Journey D                                                                                                                                                                    | Next     |
 | 6B Imports & verification | CSV stage/validate/preview/commit, duplicate detection, error report, export with formula-injection guard, review queue, correction form. Journey E                                                                                                                                               | —        |
 | 7 SEO & quality           | Metadata, JSON-LD, indexability function, sitemap/robots, slug 301s, axe, security headers/CSP                                                                                                                                                                                                    | —        |
 | 8 Final                   | Full suite, mobile e2e, all docs, acceptance checklist                                                                                                                                                                                                                                            | —        |
@@ -17,6 +17,39 @@
 Order of work inside each stage: schema/service → tests → UI → e2e journey → gate.
 
 ---
+
+## Stage 5 — gate run 2026-11-20
+
+### Done and verified
+
+| Check                                                              | Command                                                                                | Result                                   |
+| ------------------------------------------------------------------ | -------------------------------------------------------------------------------------- | ---------------------------------------- |
+| Typecheck / lint / formatting                                      | `pnpm typecheck`, `pnpm lint`, `pnpm format:check`                                     | pass                                     |
+| Unit tests                                                         | `pnpm test:unit`                                                                       | 110 passed                               |
+| Integration tests (real PostgreSQL 16.15, seeded)                  | `pnpm test:integration`                                                                | 93 passed                                |
+| E2E — Journeys A, B, C + catalogue + smoke; desktop **and** mobile | `pnpm e2e`                                                                             | 48 passed                                |
+| Migrations from scratch + seed ×3                                  | `pnpm db:migrate:fresh && pnpm db:seed` ×3                                             | runs 2–3: no changes                     |
+| Manual `/go` checks with curl on a production build                | valid → 302 + headers; tampered / malformed / expired → 404; click row holds host only | as expected                              |
+| Visual check                                                       | offers on the product page: Poland (desktop) and All markets (390 px)                  | matches the 1a offers table; no overflow |
+
+Built and covered by tests:
+
+- **Offer display** (`groupOffers`): selected market first, other markets collapsed and labelled, stale offers below fresh ones with "price last checked N days ago, may have changed", expired/inactive/inactive-retailer offers never shown, ordering by availability → currency → price; variant-aware (`?variant=`). Product page: offer list with retailer, market + currency, condition, availability (icon + text), last checked (relative, exact time on hover), price with original price and shipping, Demo tags, `rel="sponsored nofollow"` links through `/go/`; "See N offers in <market>" button; honest empty state; affiliate disclosure next to every offer list (product page, comparison page) and in the footer.
+- **`/go/[offerId]`**: UUID validation; active / unexpired / active retailer / published product / demo flag; target only from stored URLs, https, exact host allowlist (lookalike hosts, subdomains, credentials, custom ports, `http:` and `javascript:` all rejected); click recorded without IP/UA (referrer host only, bot flag); 302 with `no-store`, referrer policy and `X-Robots-Tag`. `HEAD` → 405.
+- **Offer writes:** create/update/mark-checked with price history appended on create and price change only; currency, variant and URL-host validation; suspicious-price review items (configurable threshold).
+- **Comparison page:** "Go to retailer" for each product's best fresh offer, plus the disclosure.
+- **robots.txt** disallows `/admin`, `/api`, `/go`, `/search`.
+- **Journey C** (desktop + mobile): product page with a fresh demo offer → retailer, price, currency, market, last checked visible → `/go/[offerId]` requested without following redirects → 302 to the configured demo URL → exactly one `affiliate_clicks` row; tampered/unknown/malformed/expired ids → 404 with no click recorded.
+
+### Done but not verified
+
+- Docker Compose database — still blocked by the Docker Hub rate limit in this environment.
+
+### Deferred
+
+- Offer CRUD screens, stale/expired offer lists and "mark as checked now" button → **Stage 6A** (the services exist and are tested).
+- Resolving `suspicious_price` review items → Stage 6B (review queue).
+- Offer JSON-LD (fresh, non-demo, in-market only) → Stage 7.
 
 ## Stage 4 — gate run 2026-11-20
 

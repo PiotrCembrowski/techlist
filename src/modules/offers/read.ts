@@ -1,4 +1,5 @@
 import { sql } from "drizzle-orm";
+import type { DisplayOffer } from "./display";
 import type { DbOrTx } from "@/lib/db";
 
 export interface LowestOffer {
@@ -6,6 +7,8 @@ export interface LowestOffer {
   /** Lowest fresh, in-stock price in this market; null when the market is ALL (no cross-currency minimum). */
   price: string | null;
   currency: string | null;
+  /** The offer behind `price` (for a /go/ link); null when there is no price. */
+  offerId: string | null;
   /** Fresh, displayable offers counted for the card line. */
   offerCount: number;
   marketCount: number;
@@ -40,12 +43,14 @@ export async function getLowestFreshOffers(
     market_count: number;
     price: string | null;
     currency: string | null;
+    offer_id: string | null;
   }>(sql`
     SELECT o.product_id,
            count(*)::int AS offer_count,
            count(DISTINCT o.market_country_code)::int AS market_count,
            (array_agg(o.price_amount::text ORDER BY o.price_amount) FILTER (WHERE o.availability_status <> 'out_of_stock'))[1] AS price,
-           (array_agg(o.currency ORDER BY o.price_amount) FILTER (WHERE o.availability_status <> 'out_of_stock'))[1] AS currency
+           (array_agg(o.currency ORDER BY o.price_amount) FILTER (WHERE o.availability_status <> 'out_of_stock'))[1] AS currency,
+           (array_agg(o.id::text ORDER BY o.price_amount) FILTER (WHERE o.availability_status <> 'out_of_stock'))[1] AS offer_id
     FROM retailer_offers o
     WHERE o.product_id = ANY(${sql.param(productIds)}::uuid[])
       AND ${freshOfferSql(staleHours)}
@@ -58,6 +63,7 @@ export async function getLowestFreshOffers(
       marketCount: Number(r.market_count),
       price: market === "ALL" ? null : r.price,
       currency: market === "ALL" ? null : r.currency,
+      offerId: market === "ALL" ? null : r.offer_id,
     });
   }
   return out;
@@ -85,4 +91,63 @@ export async function getMarketCurrencies(db: DbOrTx, market: string): Promise<s
     WHERE o.market_country_code = ${market} AND ${displayableOfferSql}
     ORDER BY 1 LIMIT 10`);
   return rows.map((r) => r.currency);
+}
+
+/**
+ * Displayable offers for a product page (active, unexpired, active retailer). With a variant
+ * selected: that variant's offers plus offers not tied to a variant. Bounded to 100 rows.
+ */
+export async function getProductOffers(
+  db: DbOrTx,
+  productId: string,
+  variantId: string | null,
+): Promise<DisplayOffer[]> {
+  const rows = await db.execute<{
+    id: string;
+    retailer_name: string;
+    retailer_slug: string;
+    market_country_code: string;
+    currency: string;
+    price_amount: string;
+    original_price_amount: string | null;
+    shipping_cost: string | null;
+    availability_status: "in_stock" | "out_of_stock" | "preorder" | "unknown";
+    condition: "new" | "used" | "refurbished";
+    last_checked_at: string;
+    expires_at: string | null;
+    is_active: boolean;
+    is_demo: boolean;
+    variant_id: string | null;
+    variant_name: string | null;
+  }>(sql`
+    SELECT o.id, r.name AS retailer_name, r.slug AS retailer_slug, o.market_country_code, o.currency,
+           o.price_amount::text, o.original_price_amount::text, o.shipping_cost::text, o.availability_status,
+           o.condition, o.last_checked_at::text, o.expires_at::text, o.is_active, o.is_demo,
+           o.variant_id, v.variant_name
+    FROM retailer_offers o
+    JOIN retailers r ON r.id = o.retailer_id
+    LEFT JOIN product_variants v ON v.id = o.variant_id
+    WHERE o.product_id = ${productId}
+      AND ${displayableOfferSql}
+      ${variantId ? sql`AND (o.variant_id IS NULL OR o.variant_id = ${variantId})` : sql``}
+    ORDER BY o.price_amount
+    LIMIT 100`);
+  return rows.map((r) => ({
+    id: r.id,
+    retailerName: r.retailer_name,
+    retailerSlug: r.retailer_slug,
+    marketCountryCode: r.market_country_code,
+    currency: r.currency,
+    priceAmount: r.price_amount,
+    originalPriceAmount: r.original_price_amount,
+    shippingCost: r.shipping_cost,
+    availabilityStatus: r.availability_status,
+    condition: r.condition,
+    lastCheckedAt: new Date(r.last_checked_at),
+    expiresAt: r.expires_at ? new Date(r.expires_at) : null,
+    isActive: r.is_active,
+    isDemo: r.is_demo,
+    variantId: r.variant_id,
+    variantName: r.variant_name,
+  }));
 }

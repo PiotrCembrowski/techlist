@@ -30,9 +30,9 @@ export default function PrivacyPage() {
       </p>
       <h2>Retailer links</h2>
       <p>
-        Links to retailers are not live yet. When they are, following one will record only the time,
-        the offer, your selected market and the referring site&rsquo;s host name — never IP
-        addresses or browser identifiers.
+        When you follow a retailer link we record the time, the offer, your selected market and the
+        referring site&rsquo;s host name, and whether the request looked automated. We do not record
+        IP addresses, full URLs or browser identifiers.
       </p>
     </StaticPage>
   );

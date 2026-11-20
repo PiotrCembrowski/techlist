@@ -5,8 +5,8 @@ processors, graphics cards, monitors and headphones; side-by-side comparison of 
 products; and retailer offers with honest freshness, market and affiliate disclosure.
 No ratings, scores or "winners".
 
-> **Status:** Stages 1–4 of 8 are done (foundation, database, public catalogue, comparison).
-> Offers, admin and imports come in later stages. See [`docs/PROGRESS.md`](docs/PROGRESS.md).
+> **Status:** Stages 1–5 of 8 are done (foundation, database, public catalogue, comparison, offers).
+> Admin, imports, SEO and final docs come in later stages. See [`docs/PROGRESS.md`](docs/PROGRESS.md).
 
 - Specification (source of truth): [`docs/SPEC.md`](docs/SPEC.md)
 - Decisions: [`docs/DECISIONS.md`](docs/DECISIONS.md)
@@ -49,16 +49,17 @@ CREATE DATABASE specbase_test OWNER specbase;
 
 Validated with Zod at startup (`src/config/env.ts`); see `.env.example`.
 
-| Variable            | Required       | Default                 | Purpose                                                               |
-| ------------------- | -------------- | ----------------------- | --------------------------------------------------------------------- |
-| `DATABASE_URL`      | yes            | —                       | PostgreSQL connection string                                          |
-| `TEST_DATABASE_URL` | for tests      | —                       | Separate database. **Its schema is dropped** by integration/e2e setup |
-| `SITE_URL`          | in deployments | `http://localhost:3000` | Canonical origin for metadata                                         |
-| `ENABLE_DEMO_DATA`  | no             | `false`                 | Shows the site-wide demo banner; demo offers may redirect             |
-| `ALLOW_DEMO_SEED`   | no             | `false`                 | Required to seed demo data with `NODE_ENV=production`                 |
-| `OFFER_STALE_HOURS` | no             | `72`                    | Offers last checked longer ago are shown as stale                     |
-| `DB_POOL_MAX`       | no             | `10`                    | Connection pool size                                                  |
-| `AUTH_SECRET`       | from Stage 6A  | —                       | Auth.js secret (≥ 32 chars)                                           |
+| Variable                     | Required       | Default                 | Purpose                                                               |
+| ---------------------------- | -------------- | ----------------------- | --------------------------------------------------------------------- |
+| `DATABASE_URL`               | yes            | —                       | PostgreSQL connection string                                          |
+| `TEST_DATABASE_URL`          | for tests      | —                       | Separate database. **Its schema is dropped** by integration/e2e setup |
+| `SITE_URL`                   | in deployments | `http://localhost:3000` | Canonical origin for metadata                                         |
+| `ENABLE_DEMO_DATA`           | no             | `false`                 | Shows the site-wide demo banner; demo offers may redirect             |
+| `ALLOW_DEMO_SEED`            | no             | `false`                 | Required to seed demo data with `NODE_ENV=production`                 |
+| `SUSPICIOUS_PRICE_DEVIATION` | no             | `0.5`                   | Offer prices further than this from the median create a review item   |
+| `OFFER_STALE_HOURS`          | no             | `72`                    | Offers last checked longer ago are shown as stale                     |
+| `DB_POOL_MAX`                | no             | `10`                    | Connection pool size                                                  |
+| `AUTH_SECRET`                | from Stage 6A  | —                       | Auth.js secret (≥ 32 chars)                                           |
 
 ## Database
 

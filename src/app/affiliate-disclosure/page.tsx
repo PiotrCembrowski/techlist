@@ -26,8 +26,8 @@ export default function AffiliateDisclosurePage() {
       <ul>
         <li>Which products we list, and which specifications we show.</li>
         <li>
-          Which offers we list, and their order. Offers are ordered by price within your selected
-          market.
+          Which offers we list, and their order. Offers are ordered by availability, then price,
+          within your selected market.
         </li>
         <li>Verification status. It depends only on sources.</li>
       </ul>

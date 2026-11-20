@@ -19,6 +19,8 @@ export const envSchema = z.object({
   ENABLE_DEMO_DATA: booleanString,
   ALLOW_DEMO_SEED: booleanString,
   OFFER_STALE_HOURS: z.coerce.number().int().positive().default(72),
+  /** A new/changed offer price deviating more than this from the median current price (same product + currency) is queued for review. 0.5 = 50%. */
+  SUSPICIOUS_PRICE_DEVIATION: z.coerce.number().positive().max(10).default(0.5),
   DB_POOL_MAX: z.coerce.number().int().positive().max(100).default(10),
   // Required from Stage 6A (admin auth). Optional until then, but if set it must be strong.
   AUTH_SECRET: z.string().min(32, "AUTH_SECRET must be at least 32 characters").optional(),

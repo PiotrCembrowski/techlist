@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
 import { cache } from "react";
 import { CompareToggle } from "@/components/compare/compare-toggle";
+import { OfferList } from "@/components/offers/offer-list";
 import { DemoTag } from "@/components/product/demo-tag";
 import { ImagePlaceholder } from "@/components/product/image-placeholder";
 import { ProductGrid } from "@/components/product/product-card";
@@ -13,10 +14,13 @@ import { Blueprint } from "@/components/ui/blueprint";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { Container } from "@/components/ui/section";
 import { getCatalogOptions } from "@/lib/catalog-context";
+import { getEnv } from "@/config/env";
 import { getDb } from "@/lib/db";
-import { formatDate } from "@/lib/format";
+import { formatDate, marketName } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { getProductCards, productHref } from "@/modules/catalog/service";
+import { groupOffers } from "@/modules/offers/display";
+import { getProductOffers } from "@/modules/offers/read";
 import { loadProductPage, type RelatedLink } from "@/modules/products/public";
 
 type Props = {
@@ -108,10 +112,15 @@ export default async function ProductPage(props: Props) {
   const category = d.categoryChain[d.categoryChain.length - 1];
   const db = getDb();
   const opts = await getCatalogOptions();
-  const [alternatives, related] = await Promise.all([
+  const [alternatives, related, offerRows] = await Promise.all([
     getProductCards(db, d.alternativeIds, opts),
     getProductCards(db, d.relatedIds, opts),
+    getProductOffers(db, d.product.id, d.selectedVariant?.id ?? null),
   ]);
+  const now = new Date();
+  const staleHours = getEnv().OFFER_STALE_HOURS;
+  const offers = groupOffers(offerRows, opts.market, staleHours, now);
+  const primaryCount = offers.primary.reduce((n, g) => n + g.fresh.length + g.stale.length, 0);
   const status = STATUS[product.productStatus];
   const base = productHref(brand.slug, product.slug);
   const defaultVariant = d.variants.find((v) => v.isDefault) ?? null;
@@ -258,6 +267,15 @@ export default async function ProductPage(props: Props) {
           ) : null}
 
           <div className="flex flex-wrap gap-2.5">
+            {primaryCount ? (
+              <a
+                href="#offers"
+                className="blueprint inline-flex h-11 items-center border-primary bg-primary px-[22px] font-heading text-[15px] font-semibold text-primary-foreground hover:bg-primary-hover"
+              >
+                See {primaryCount} {primaryCount === 1 ? "offer" : "offers"}
+                {opts.market !== "ALL" ? ` in ${marketName(opts.market)}` : ""}
+              </a>
+            ) : null}
             <CompareToggle
               variant="button"
               item={{
@@ -280,6 +298,14 @@ export default async function ProductPage(props: Props) {
           ) : null}
         </div>
       </div>
+
+      <OfferList
+        offers={offers}
+        market={opts.market}
+        staleHours={staleHours}
+        showVariant={!d.selectedVariant}
+        now={now}
+      />
 
       <div className="grid gap-10 lg:grid-cols-12">
         <section aria-labelledby="specs" className="lg:col-span-8">

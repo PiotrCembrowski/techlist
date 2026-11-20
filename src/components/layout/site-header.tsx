@@ -1,6 +1,7 @@
 import { Search } from "lucide-react";
 import Link from "next/link";
 import { Wordmark } from "@/components/brand/wordmark";
+import { HeaderCompareLink } from "@/components/compare/compare-tray";
 import { SearchBox } from "@/components/search/search-box";
 import { siteConfig } from "@/config/site";
 import { getDb } from "@/lib/db";
@@ -14,9 +15,8 @@ import { MobileNav } from "./mobile-nav";
 import { ThemeToggle } from "./theme-toggle";
 
 /**
- * Compact header: wordmark, Categories (mega-menu), Products, Brands, Guides, search with
- * suggestions, market selector, theme. The Compare link (with tray count) arrives in Stage 4
- * together with the comparison page — no links to pages that do not exist yet (rule 2.3.1).
+ * Compact header: wordmark, Categories (mega-menu), Products, Brands, Guides, Compare (with the
+ * tray count), search with suggestions, market selector, theme.
  */
 export async function SiteHeader() {
   const db = getDb();
@@ -55,6 +55,7 @@ export async function SiteHeader() {
           <Link href="/guides" className="hover:text-primary">
             Guides
           </Link>
+          <HeaderCompareLink className="flex items-center hover:text-primary" />
         </nav>
         <SearchBox className="hidden max-w-[420px] flex-1 lg:block" />
         <div className="flex-1 lg:hidden" />

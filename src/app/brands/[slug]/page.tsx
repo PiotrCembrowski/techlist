@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
 import { cache } from "react";
+import { FeaturedComparisons } from "@/components/compare/featured-comparisons";
 import { DemoTag } from "@/components/product/demo-tag";
 import { ProductGrid } from "@/components/product/product-card";
 import { Blueprint } from "@/components/ui/blueprint";
@@ -13,6 +14,7 @@ import { getDb } from "@/lib/db";
 import { marketName } from "@/lib/format";
 import { getBrandPageData } from "@/modules/catalog/pages";
 import { getProductCards } from "@/modules/catalog/service";
+import { listFeaturedComparisons } from "@/modules/comparisons/service";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -37,9 +39,10 @@ export default async function BrandPage({ params }: Props) {
   const { brand, categories, families, latestIds, discontinuedIds, productCount } = page.data;
   const db = getDb();
   const opts = await getCatalogOptions();
-  const [latest, discontinued] = await Promise.all([
+  const [latest, discontinued, comparisons] = await Promise.all([
     getProductCards(db, latestIds, opts),
     getProductCards(db, discontinuedIds, opts),
+    listFeaturedComparisons(db, { brandId: brand.id, limit: 6 }),
   ]);
   const monogram = brand.name.slice(0, 2).toUpperCase();
 
@@ -157,6 +160,9 @@ export default async function BrandPage({ params }: Props) {
         <Section title="Discontinued models" id="discontinued">
           <ProductGrid cards={discontinued} market={opts.market} />
         </Section>
+      ) : null}
+      {comparisons.length ? (
+        <FeaturedComparisons items={comparisons} title={`Comparisons with ${brand.name}`} />
       ) : null}
     </>
   );

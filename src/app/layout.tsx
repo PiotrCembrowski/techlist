@@ -6,6 +6,7 @@ import "@fontsource/barlow-condensed/600.css";
 import "./globals.css";
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
+import { CompareTray } from "@/components/compare/compare-tray";
 import { DemoBanner } from "@/components/layout/demo-banner";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
@@ -52,6 +53,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             {children}
           </main>
           <SiteFooter demo={demo} />
+          <CompareTray />
         </ThemeProvider>
       </body>
     </html>

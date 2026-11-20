@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { FeaturedComparisons } from "@/components/compare/featured-comparisons";
 import { CategoryIcon } from "@/components/product/image-placeholder";
 import { ProductGrid } from "@/components/product/product-card";
 import { SearchBox } from "@/components/search/search-box";
@@ -14,24 +15,26 @@ import {
 } from "@/modules/catalog/pages";
 import { getProductCards } from "@/modules/catalog/service";
 import { listPublishedGuides } from "@/modules/guides/service";
+import { listFeaturedComparisons } from "@/modules/comparisons/service";
 import { getCatalogStats } from "@/modules/stats/service";
 
 const nf = new Intl.NumberFormat("en-GB");
 
 /**
- * Homepage (SPEC §7.1). Every section is backed by real data and omitted when empty. Featured
- * comparisons are added in Stage 4 together with the comparison pages they link to.
+ * Homepage (SPEC §7.1). Every section is backed by real data and omitted when empty.
  */
 export default async function HomePage() {
   const db = getDb();
   const opts = await getCatalogOptions();
-  const [stats, categories, { featuredIds, recentIds }, brands, guides] = await Promise.all([
-    getCatalogStats(db),
-    getCategoryTree(db),
-    getHomeProductIds(db, 8),
-    listBrandsByProductCount(db, 12),
-    listPublishedGuides(db, { limit: 3 }),
-  ]);
+  const [stats, categories, { featuredIds, recentIds }, brands, guides, comparisons] =
+    await Promise.all([
+      getCatalogStats(db),
+      getCategoryTree(db),
+      getHomeProductIds(db, 8),
+      listBrandsByProductCount(db, 12),
+      listPublishedGuides(db, { limit: 3 }),
+      listFeaturedComparisons(db, { limit: 3 }),
+    ]);
   const [featured, recent] = await Promise.all([
     getProductCards(db, featuredIds, opts),
     getProductCards(db, recentIds, opts),
@@ -174,6 +177,8 @@ export default async function HomePage() {
           </ul>
         </Section>
       ) : null}
+
+      {comparisons.length ? <FeaturedComparisons items={comparisons} /> : null}
 
       {guides.length ? (
         <Section

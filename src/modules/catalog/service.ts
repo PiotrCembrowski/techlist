@@ -42,6 +42,8 @@ export interface ProductCardData {
   isDemo: boolean;
   brand: { slug: string; name: string };
   category: { slug: string; name: string; icon: string | null };
+  /** Root of the category tree; products can only be compared within one top-level category. */
+  topCategory: { slug: string; name: string };
   keySpecs: { key: string; label: string; value: string }[];
   offer: LowestOffer | null;
 }
@@ -177,7 +179,26 @@ export async function listCatalog(
   };
 }
 
-/** Enrich product rows with key specs and the market's lowest fresh offer (two batched queries). */
+/** category id -> its top-level category (one small query; the tree is bounded at 200). */
+async function getTopCategoryMap(db: DbOrTx): Promise<Map<string, { slug: string; name: string }>> {
+  const cats = await db.execute<{
+    id: string;
+    parent_id: string | null;
+    slug: string;
+    name: string;
+  }>(sql`SELECT id, parent_id, slug, name FROM categories LIMIT 200`);
+  const byId = new Map(cats.map((c) => [c.id, c]));
+  const out = new Map<string, { slug: string; name: string }>();
+  for (const c of cats) {
+    let cur = c;
+    for (let i = 0; i < 8 && cur.parent_id && byId.has(cur.parent_id); i++)
+      cur = byId.get(cur.parent_id)!;
+    out.set(c.id, { slug: cur.slug, name: cur.name });
+  }
+  return out;
+}
+
+/** Enrich product rows with key specs and the market's lowest fresh offer (batched queries). */
 async function toCards(db: DbOrTx, rows: Row[], opts: CatalogOptions): Promise<ProductCardData[]> {
   if (rows.length === 0) return [];
   const ids = rows.map((r) => r.id);
@@ -191,9 +212,10 @@ async function toCards(db: DbOrTx, rows: Row[], opts: CatalogOptions): Promise<P
     ]),
   );
   const allDefIds = [...new Set([...cardDefs.values()].flat().map((d) => d.id))];
-  const [specs, offers] = await Promise.all([
+  const [specs, offers, topOf] = await Promise.all([
     getSpecificationsForProducts(db, ids, allDefIds),
     getLowestFreshOffers(db, ids, opts.market, opts.staleHours),
+    getTopCategoryMap(db),
   ]);
 
   return rows.map((r) => {
@@ -218,6 +240,7 @@ async function toCards(db: DbOrTx, rows: Row[], opts: CatalogOptions): Promise<P
       isDemo: r.is_demo,
       brand: { slug: r.brand_slug, name: r.brand_name },
       category: { slug: r.category_slug, name: r.category_name, icon: r.category_icon },
+      topCategory: topOf.get(r.category_id) ?? { slug: r.category_slug, name: r.category_name },
       keySpecs,
       offer: offers.get(r.id) ?? null,
     };

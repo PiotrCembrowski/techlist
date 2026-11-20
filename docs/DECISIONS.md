@@ -193,10 +193,46 @@ One entry per non-obvious engineering decision: **decision**, **reason**, **alte
 
 ### D32. Stage 3 scope boundaries
 
-- **Decision:** Not shown yet, because the routes they link to arrive later (rule 2.3.1): the header **Compare** link and card compare toggles (Stage 4), the homepage **featured comparisons** section (Stage 4), the PDP **offer list** with `/go/` links (Stage 5), and **Suggest a correction** (Stage 6B). Product images: always the placeholder until uploads exist (Stage 6A). The brand page "featured comparisons involving the brand" section also arrives in Stage 4.
+- **Decision:** Not shown yet, because the routes they link to arrive later (rule 2.3.1): the header **Compare** link and card compare toggles (Stage 4 — done), the homepage **featured comparisons** section (Stage 4 — done), the PDP **offer list** with `/go/` links (Stage 5), and **Suggest a correction** (Stage 6B). Product images: always the placeholder until uploads exist (Stage 6A). The brand page "featured comparisons involving the brand" section also arrives in Stage 4 (done).
 - **Reason:** No controls that look functional but do nothing.
 
 ### D33. Single root layout; no `(public)` route group yet
 
 - **Decision:** Public routes live directly under `src/app/`. The `(public)` group from SPEC §4 is introduced in Stage 6A, when the admin needs a different layout.
 - **Reason:** Avoids an empty abstraction; moving files into a route group doesn't change URLs.
+
+## 2026-11-20 — Stage 4
+
+### D34. Comparison rows come from the deepest common category
+
+- **Decision:** For 2–4 products sharing a top-level category, rows are the comparable, public definitions of their **lowest common category** (inherited ones included). A laptop + a gaming laptop compare on laptop rows; two gaming laptops also get the GPU rows. Different top-level categories get a clear "can't be compared" page with links to compare within each group.
+- **Reason:** SPEC §7.7 ("comparable definitions of the shared category, including inherited ones").
+- **Alternatives:** The union of all definitions (would show rows that cannot apply to some products).
+
+### D35. Difference and "better" semantics
+
+- **Decision:** A row **differs** when known values differ, or when some products have a value and others don't. The **better** marker (icon + "Highest"/"Lowest" text) appears only for definitions with a comparison direction and only when at least two known values differ; ties and single values get no marker. There is no overall score. Rows where no product has a value are omitted. "Show only differences" hides identical rows with CSS (no refetch, no extra URLs).
+- **Reason:** SPEC §7.7, and status is never conveyed by colour alone.
+- **Alternatives:** Treating missing as "worse" (would reward incomplete data entry).
+
+### D36. Manufacturer claims
+
+- **Decision:** A value whose source has `source_type = manufacturer` is labelled "manufacturer claim". There is no "independent measurement" source type yet, so other values carry no extra label.
+- **Reason:** SPEC §7.7 asks to distinguish claims from measurements "when the source type indicates it".
+
+### D37. Tray in localStorage via `useSyncExternalStore`; URL is the source of truth on comparison pages
+
+- **Decision:** The tray (max 4) is a small external store over `localStorage` (try/catch everywhere; falls back to memory for the page view; validated with Zod on read; synced across tabs). Products from another top-level category are not silently added: the tray asks whether to start a new comparison. Opening a comparison URL (including a shared link) replaces the tray with that comparison's products. Removing a product navigates to the new canonical URL and updates the tray. `/compare` shows the picker and the current tray and moves to the comparison once two products are chosen.
+- **Reason:** SPEC §7.7; shareable URLs stay authoritative.
+- **Alternatives:** Server-side session state (needs cookies/accounts, out of scope).
+
+### D38. Comparison table layout
+
+- **Decision:** One `<table>` inside a scroll container (`max-h-[80vh]`, scrolls both ways) with a sticky header row (products, remove buttons, "Add product" slot) and a sticky first column (spec labels). The same layout serves mobile: labels stay visible while products scroll horizontally.
+- **Reason:** SPEC §7.7 mobile requirement; one accessible table instead of a separate stacked layout.
+- **Alternatives:** Stacked per-spec cards on mobile (more markup; harder to scan across products).
+
+### D39. Comparison picker endpoint
+
+- **Decision:** `/api/compare/search?q=&category=` reuses the catalogue query (name, model number, fuzzy) scoped to one category tree, ≤ 8 results, rate-limited (60/min per hashed client).
+- **Reason:** "Add product" must offer only products that can be compared.

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CompareToggle } from "@/components/compare/compare-toggle";
 import { Blueprint } from "@/components/ui/blueprint";
 import { formatPrice, marketName } from "@/lib/format";
 import type { ProductCardData } from "@/modules/catalog/service";
@@ -51,7 +52,6 @@ function OfferLine({ card, market }: { card: ProductCardData; market: string }) 
 /**
  * Product card (direction 1a): image, brand, name, one distinguishing line, up to four key specs,
  * lowest fresh offer for the selected market. No ratings or review counts (rule: SPEC §3 honesty).
- * The compare toggle is added with the comparison tray in Stage 4.
  */
 export function ProductCard({
   card,
@@ -107,8 +107,19 @@ export function ProductCard({
           className="mt-auto pt-1"
         />
       </div>
-      <div className="flex min-h-[60px] items-center border-t px-4 py-3">
+      <div className="flex min-h-[60px] items-center justify-between gap-3 border-t px-4 py-3">
         <OfferLine card={card} market={market} />
+        <CompareToggle
+          item={{
+            slug: card.slug,
+            name: card.name,
+            brandName: card.brand.name,
+            href: card.href,
+            topCategorySlug: card.topCategory.slug,
+            topCategoryName: card.topCategory.name,
+            icon: card.category.icon,
+          }}
+        />
       </div>
     </Blueprint>
   );

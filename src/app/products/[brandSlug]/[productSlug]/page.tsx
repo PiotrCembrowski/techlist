@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
 import { cache } from "react";
+import { CompareToggle } from "@/components/compare/compare-toggle";
 import { DemoTag } from "@/components/product/demo-tag";
 import { ImagePlaceholder } from "@/components/product/image-placeholder";
 import { ProductGrid } from "@/components/product/product-card";
@@ -255,6 +256,21 @@ export default async function ProductPage(props: Props) {
               ))}
             </dl>
           ) : null}
+
+          <div className="flex flex-wrap gap-2.5">
+            <CompareToggle
+              variant="button"
+              item={{
+                slug: product.slug,
+                name: product.name,
+                brandName: brand.name,
+                href: base,
+                topCategorySlug: d.categoryChain[0]?.slug ?? category?.slug ?? "",
+                topCategoryName: d.categoryChain[0]?.name ?? category?.name ?? "",
+                icon: category?.icon ?? null,
+              }}
+            />
+          </div>
 
           {d.predecessors.length || d.successors.length ? (
             <div className="flex flex-wrap gap-8 text-sm">

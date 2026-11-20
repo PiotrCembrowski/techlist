@@ -80,6 +80,7 @@ export function MobileNav({
                 { href: "/brands", label: "Brands" },
                 { href: "/guides", label: "Guides" },
                 { href: "/search", label: "Search" },
+                { href: "/compare", label: "Compare" },
               ].map((l) => (
                 <Link
                   key={l.href}

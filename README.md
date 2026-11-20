@@ -5,8 +5,8 @@ processors, graphics cards, monitors and headphones; side-by-side comparison of 
 products; and retailer offers with honest freshness, market and affiliate disclosure.
 No ratings, scores or "winners".
 
-> **Status:** Stages 1–3 of 8 are done (foundation, database, public catalogue). Comparison,
-> offers, admin and imports come in later stages. See [`docs/PROGRESS.md`](docs/PROGRESS.md).
+> **Status:** Stages 1–4 of 8 are done (foundation, database, public catalogue, comparison).
+> Offers, admin and imports come in later stages. See [`docs/PROGRESS.md`](docs/PROGRESS.md).
 
 - Specification (source of truth): [`docs/SPEC.md`](docs/SPEC.md)
 - Decisions: [`docs/DECISIONS.md`](docs/DECISIONS.md)

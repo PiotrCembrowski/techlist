@@ -22,13 +22,15 @@ type Action = (prev: unknown, fd: FormData) => Promise<unknown>;
 const ADMIN_DIR = path.resolve("src/app/admin");
 const PUBLIC_ACTION_FILES = new Set([path.join(ADMIN_DIR, "login", "actions.ts")]);
 
-function findActionFiles(dir: string): string[] {
+function findFiles(dir: string, pattern: RegExp): string[] {
   return readdirSync(dir).flatMap((name) => {
     const full = path.join(dir, name);
-    if (statSync(full).isDirectory()) return findActionFiles(full);
-    return /actions\.ts$/.test(name) && !PUBLIC_ACTION_FILES.has(full) ? [full] : [];
+    if (statSync(full).isDirectory()) return findFiles(full, pattern);
+    return pattern.test(name) ? [full] : [];
   });
 }
+const findActionFiles = (dir: string) =>
+  findFiles(dir, /actions\.ts$/).filter((f) => !PUBLIC_ACTION_FILES.has(f));
 
 async function loadActions(): Promise<{ name: string; fn: Action }[]> {
   const out: { name: string; fn: Action }[] = [];
@@ -195,6 +197,27 @@ describe("admin Server Actions authorization", () => {
     const create = owned.find((a) => a.name.endsWith("#createUserAction"))!;
     const ok = (await create.fn(undefined, fd)) as { ok?: string };
     expect(ok.ok).toContain("sneaky@example.test");
+  });
+
+  it("rejects anonymous requests to every admin route handler (CSV downloads)", async () => {
+    const files = findFiles(ADMIN_DIR, /^route\.ts$/);
+    expect(files.length).toBeGreaterThanOrEqual(3);
+    for (const file of files) {
+      const mod = (await import(/* @vite-ignore */ file)) as Record<string, unknown>;
+      for (const method of ["GET", "POST", "PUT", "PATCH", "DELETE"]) {
+        const handler = mod[method] as
+          ((req: Request, ctx: unknown) => Promise<Response>) | undefined;
+        if (!handler) continue;
+        const req = new Request("http://localhost/admin/x?type=products&category=laptops", {
+          method,
+        });
+        const ctxArg = { params: Promise.resolve({ id: "00000000-0000-4000-8000-000000000000" }) };
+        expect(
+          await redirectOf(handler(req, ctxArg)),
+          `${path.relative(ADMIN_DIR, file)} ${method}`,
+        ).toBe("/admin/login");
+      }
+    }
   });
 
   it("does not let an owner deactivate themselves", async () => {

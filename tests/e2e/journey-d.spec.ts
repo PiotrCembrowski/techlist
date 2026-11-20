@@ -27,6 +27,15 @@ const ADMIN_PATHS = [
   `/admin/sources/${UUID}`,
   "/admin/users",
   "/admin/audit",
+  "/admin/review",
+  `/admin/review/${UUID}`,
+  "/admin/imports",
+  `/admin/imports/${UUID}`,
+  "/admin/data-sources",
+  // CSV downloads (route handlers)
+  "/admin/imports/template?type=offers",
+  "/admin/imports/export?type=products&category=laptops",
+  `/admin/imports/${UUID}/errors`,
 ];
 
 async function expectStatus(form: ReturnType<Page["getByRole"]>, text: string | RegExp) {

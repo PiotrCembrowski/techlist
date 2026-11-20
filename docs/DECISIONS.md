@@ -315,3 +315,48 @@ One entry per non-obvious engineering decision: **decision**, **reason**, **alte
 
 - **Decision:** Journey D runs in `admin-desktop` / `admin-mobile` Playwright projects that depend on the public projects. The e2e admin is created in global setup with a test-only password from `tests/e2e/fixtures.ts`.
 - **Reason:** Journey D publishes a product; the public specs assert exact counts against the seed.
+
+### D55. Import pipeline: stage, plan, commit
+
+- **Decision:** Upload stores every raw row in `import_rows` and auto-maps headers (case/space-insensitive, a few aliases, `spec.<key>`). "Validate" runs one planning pass over all rows with bulk lookups (brands, categories, sources, GTIN/MPN/model matches, name similarity, earlier review decisions, existing variants/specs/source records in a fixed number of queries; no per-row queries) and writes each row's action, problems and notes. "Commit" plans again (the catalogue may have changed), then applies create/update rows through the normal services in transactions of 100 rows with one savepoint per row, so a failing row is reported without undoing the others. A job is claimed (`started_at`) so it cannot be committed twice. Conflicts become review items at commit time, not during the preview.
+- **Reason:** SPEC §9.6. Going through the services keeps validation, audit logging and verified-value protection identical to manual edits.
+
+### D56. Duplicate detection and variant identity
+
+- **Decision:** Product match order: exact GTIN → brand + MPN (product or variant) → brand + normalised model number (case and punctuation ignored) → name trigram similarity ≥ 0.6 within the brand. The first three are matches; similarity alone is only a `duplicate_candidate` conflict. Identifiers that point at different products, another brand's GTIN or a matched product in another category are errors. Variant match: GTIN → code (given or derived from the name) → name. A matched variant whose region differs from the row's (when the file has a `region_code` column) is a `variant_ambiguity` conflict; regional variants are never merged (rule 2.1.5). Brands, categories and sources must already exist; imports never create them.
+- **Reason:** SPEC §9.6 step 6; creating brands from typos would pollute the catalogue.
+
+### D57. Idempotency means "compare with the catalogue", not only row hashes
+
+- **Decision:** A row is `skip` when applying it would change nothing: provided fields equal the stored ones, specification values equal the variant's effective value (override or product value), and the product-level source record exists. Empty cells never clear stored values. `row_hash` (SHA-256 of the mapped, trimmed cells) is stored and used to detect repeated rows within a file and to find earlier review decisions for the same row (approved: use the product/variant the reviewer chose or created; rejected: skip; open: conflict without a new item). Re-proposing a value that is already waiting as a `conflicting_value` item does not open a second one.
+- **Reason:** Hashes alone miss changes made in the admin between imports; comparing state makes "re-import the same file → zero new records" hold in every case.
+
+### D58. Where imported specification values go
+
+- **Decision:** Products are imported one row per variant. For each specification, if every variant of the product (existing and new) gets the same value from the file and no existing override would keep shadowing it, the value is written once at product level; otherwise each row writes its variant's own override. Imported values are `origin = import`, `unverified`, with the row's source. Exports write each variant's effective value with its canonical unit ("1000 GB"), so export → import is a no-op.
+- **Reason:** Keeps product-level data where it belongs without silently overwriting other variants.
+
+### D59. CSV format and formula injection
+
+- **Decision:** A small RFC 4180 parser/writer in `src/lib/csv` (no dependency): strict UTF-8 (a BOM is ignored), quoted fields, CRLF output. Uploads must end in `.csv`, contain no NUL bytes, be ≤ 5 MB and ≤ 10,000 data rows, with unique non-empty headers. Exported cells starting with `=`, `+`, `-`, `@`, tab or CR get a leading `'`; the importer strips that prefix again, so round trips are lossless. Products and offers templates/exports include an extra `is_demo` column so fictional sample data stays labelled (rule 2.1.2). Imports are limited to 20 uploads per admin per hour.
+- **Reason:** SPEC §9.6 and §13.
+
+### D60. Review queue resolutions
+
+- **Decision:** Approve/reject run in one transaction with the change they cause and an audit entry; reject needs a note. Per type — conflicting value: approve applies the proposed (or edited) value and marks it verified, reject keeps the verified value. Unverified (AI) value: approve verifies (optionally edited), reject deletes it. Suspicious price: approve changes nothing, reject deactivates the offer. New product (from import): approve publishes the draft, reject archives it. Duplicate candidate: the reviewer picks "same as <candidate>" (the row updates that product) or "different product" (created as a draft); variant ambiguity: "same variant" or "separate variant" (created with a region-suffixed code). The decision is stored in the item so re-imports follow it. Reader correction: approve applies the value with the source "Reader corrections (reviewed)"; replacing a verified value requires ticking "verified". Personal data (the optional email) is removed from an item when it is resolved.
+- **Reason:** SPEC §9.7; rules 2.1.6–2.1.8.
+
+### D61. Public correction form
+
+- **Decision:** `/products/<brand>/<product>/suggest-correction` (noindex): optional specification (public definitions of the product's category), value, source URL (required, http/https), optional email, a visually hidden honeypot field. A Server Action (origin-checked by Next.js) calls `submitCorrection`, which validates with Zod, limits 5 submissions per address per hour (hashed key) and stores a `correction` review item with no `created_by`. A filled honeypot gets the normal "thank you" and stores nothing. Only published products accept corrections.
+- **Reason:** SPEC §9.7 and §13.
+
+### D62. Data provider adapters
+
+- **Decision:** `ProductDataProvider` as in SPEC §10. `CsvProductProvider` reuses the import's row parsing. Manufacturer files, licensed feed and affiliate feed adapters are stubs: `isConfigured()` reports whether their environment settings exist (injectable for tests); `fetchProducts()` always refuses without any network call, because no provider agreement or implementation exists. The admin "Data providers" page shows their status with no controls. AI extraction is only the existing hook (`origin = ai_extracted` → unverified + review item).
+- **Reason:** Rule 2.1.10 and SPEC §10.
+
+### D63. Rate-limiter pruning uses the limiter's clock
+
+- **Decision:** The 1 % chance cleanup deletes windows older than one day **relative to the limiter's own clock**, not the database's `now()`.
+- **Reason:** With an injected clock in the past, the cleanup could delete the window being counted. This caused the rare integration-test failure seen in Stage 6A; a regression test now forces the cleanup.

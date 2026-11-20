@@ -80,7 +80,7 @@ export default async function Dashboard({
             value={stats.expiredOffers}
             href="/admin/offers?filter=expired"
           />
-          <Stat label="Open review items" value={stats.openReviews} />
+          <Stat label="Open review items" value={stats.openReviews} href="/admin/review" />
         </div>
       </section>
       <div className="grid gap-6 xl:grid-cols-2">
@@ -90,15 +90,15 @@ export default async function Dashboard({
           </h2>
           <AdminTable
             head={["File", "Type", "Status", "Rows", "When"]}
-            empty={
-              imports.length
-                ? undefined
-                : "No imports yet (CSV import arrives with the import tools)."
-            }
+            empty={imports.length ? undefined : "No imports yet."}
           >
             {imports.map((i) => (
               <tr key={i.id}>
-                <td>{i.file_name}</td>
+                <td>
+                  <Link href={`/admin/imports/${i.id}`} className="text-primary">
+                    {i.file_name}
+                  </Link>
+                </td>
                 <td>{i.import_type}</td>
                 <td>{i.status}</td>
                 <td>{i.total_rows}</td>

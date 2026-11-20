@@ -4,6 +4,7 @@ import {
   products,
   productSpecifications,
   productVariants,
+  reviewItems,
   specificationDefinitions,
   specificationGroups,
 } from "@/db/schema";
@@ -333,6 +334,21 @@ export async function setSpecificationValue(
       }
 
       if (existing?.verificationStatus === "verified" && status !== "verified") {
+        // The same proposal is already waiting for review: don't queue it twice (re-imports).
+        const [pending] = await tx
+          .select({ id: reviewItems.id })
+          .from(reviewItems)
+          .where(
+            and(
+              eq(reviewItems.itemType, "conflicting_value"),
+              eq(reviewItems.entityId, existing.id),
+              eq(reviewItems.status, "open"),
+              sql`${reviewItems.payload}->'proposed' = ${JSON.stringify(value)}::jsonb`,
+            ),
+          )
+          .limit(1);
+        if (pending)
+          return { outcome: "review_required", reviewItemId: pending.id, specification: existing };
         const item = await createReviewItem(tx, {
           itemType: "conflicting_value",
           entityType: "product_specification",

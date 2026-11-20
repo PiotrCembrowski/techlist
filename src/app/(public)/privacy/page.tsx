@@ -34,6 +34,13 @@ export default function PrivacyPage() {
         referring site&rsquo;s host name, and whether the request looked automated. We do not record
         IP addresses, full URLs or browser identifiers.
       </p>
+      <h2>Corrections</h2>
+      <p>
+        When you suggest a correction we store the product, the field, the value and the source you
+        give. An email address is optional; it is used only to ask about that correction and is
+        deleted when an editor resolves it. Submissions are counted per network address (stored as a
+        one-way hash) for an hour to prevent abuse.
+      </p>
     </StaticPage>
   );
 }

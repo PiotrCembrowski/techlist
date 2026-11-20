@@ -32,6 +32,12 @@ export const envSchema = z.object({
   S3_ENDPOINT: z.url().optional(),
   S3_ACCESS_KEY_ID: z.string().optional(),
   S3_SECRET_ACCESS_KEY: z.string().optional(),
+  /** Data provider adapters (SPEC §10). Unset = "Not configured"; see docs/DATA_SOURCES.md. */
+  MANUFACTURER_FILES_DIR: z.string().optional(),
+  LICENSED_FEED_URL: z.url().optional(),
+  LICENSED_FEED_API_KEY: z.string().optional(),
+  AFFILIATE_FEED_URL: z.url().optional(),
+  AFFILIATE_FEED_API_KEY: z.string().optional(),
 });
 // SITE_URL defaults to localhost so local production builds (`next build`, e2e) work; deployments
 // must set it (documented in .env.example and the README).

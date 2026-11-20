@@ -49,21 +49,22 @@ CREATE DATABASE specbase_test OWNER specbase;
 
 Validated with Zod at startup (`src/config/env.ts`); see `.env.example`.
 
-| Variable                                    | Required       | Default                 | Purpose                                                               |
-| ------------------------------------------- | -------------- | ----------------------- | --------------------------------------------------------------------- |
-| `DATABASE_URL`                              | yes            | —                       | PostgreSQL connection string                                          |
-| `TEST_DATABASE_URL`                         | for tests      | —                       | Separate database. **Its schema is dropped** by integration/e2e setup |
-| `SITE_URL`                                  | in deployments | `http://localhost:3000` | Canonical origin for metadata                                         |
-| `ENABLE_DEMO_DATA`                          | no             | `false`                 | Shows the site-wide demo banner; demo offers may redirect             |
-| `ALLOW_DEMO_SEED`                           | no             | `false`                 | Required to seed demo data with `NODE_ENV=production`                 |
-| `SUSPICIOUS_PRICE_DEVIATION`                | no             | `0.5`                   | Offer prices further than this from the median create a review item   |
-| `OFFER_STALE_HOURS`                         | no             | `72`                    | Offers last checked longer ago are shown as stale                     |
-| `DB_POOL_MAX`                               | no             | `10`                    | Connection pool size                                                  |
-| `AUTH_SECRET`                               | **yes**        | —                       | Auth.js secret, ≥ 32 chars (`openssl rand -base64 32`). Never commit  |
-| `STORAGE_DRIVER`                            | no             | `local`                 | `local` or `s3` (any S3-compatible service) for uploaded images       |
-| `STORAGE_LOCAL_DIR`                         | no             | `storage/uploads`       | Upload directory for the local driver (git-ignored)                   |
-| `S3_BUCKET` / `S3_REGION`                   | with `s3`      | —                       | Bucket and region; `S3_ENDPOINT` for R2/MinIO                         |
-| `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` | no             | —                       | Omit to use the SDK's default credential chain                        |
+| Variable                                                        | Required       | Default                 | Purpose                                                                   |
+| --------------------------------------------------------------- | -------------- | ----------------------- | ------------------------------------------------------------------------- |
+| `DATABASE_URL`                                                  | yes            | —                       | PostgreSQL connection string                                              |
+| `TEST_DATABASE_URL`                                             | for tests      | —                       | Separate database. **Its schema is dropped** by integration/e2e setup     |
+| `SITE_URL`                                                      | in deployments | `http://localhost:3000` | Canonical origin for metadata                                             |
+| `ENABLE_DEMO_DATA`                                              | no             | `false`                 | Shows the site-wide demo banner; demo offers may redirect                 |
+| `ALLOW_DEMO_SEED`                                               | no             | `false`                 | Required to seed demo data with `NODE_ENV=production`                     |
+| `SUSPICIOUS_PRICE_DEVIATION`                                    | no             | `0.5`                   | Offer prices further than this from the median create a review item       |
+| `OFFER_STALE_HOURS`                                             | no             | `72`                    | Offers last checked longer ago are shown as stale                         |
+| `DB_POOL_MAX`                                                   | no             | `10`                    | Connection pool size                                                      |
+| `AUTH_SECRET`                                                   | **yes**        | —                       | Auth.js secret, ≥ 32 chars (`openssl rand -base64 32`). Never commit      |
+| `STORAGE_DRIVER`                                                | no             | `local`                 | `local` or `s3` (any S3-compatible service) for uploaded images           |
+| `STORAGE_LOCAL_DIR`                                             | no             | `storage/uploads`       | Upload directory for the local driver (git-ignored)                       |
+| `S3_BUCKET` / `S3_REGION`                                       | with `s3`      | —                       | Bucket and region; `S3_ENDPOINT` for R2/MinIO                             |
+| `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY`                     | no             | —                       | Omit to use the SDK's default credential chain                            |
+| `MANUFACTURER_FILES_DIR`, `LICENSED_FEED_*`, `AFFILIATE_FEED_*` | no             | —                       | Data provider adapters; unset = "Not configured" (`docs/DATA_SOURCES.md`) |
 
 ## Database
 
@@ -99,6 +100,18 @@ Sign in at `/admin/login`. Editors manage products, variants, specifications, im
 categories and specification definitions, retailers, offers and sources. Owners also manage
 users. Every change is written to the audit log (`/admin/audit`) in the same transaction.
 Sign-in is limited to 5 attempts per 15 minutes per address and email.
+
+- **Import & export** (`/admin/imports`): upload a products or offers CSV (≤ 5 MB, ≤ 10,000
+  rows, UTF-8), check the column mapping, preview what each row would do (create / update / skip /
+  conflict / error), commit, and download an error report. Duplicates are detected by GTIN, brand +
+  MPN, brand + model number, then name similarity (never merged automatically). Re-importing a
+  file changes nothing. Exports use the same format. Try `docs/samples/products-import-sample.csv`.
+- **Review queue** (`/admin/review`): conflicting and unverified values, possible duplicates,
+  variant ambiguity, new imported products, reader corrections and suspicious prices. Approve
+  (optionally after editing), or reject with a note; every decision is audited.
+- **Data providers** (`/admin/data-sources`): which adapters are configured (`docs/DATA_SOURCES.md`).
+
+Readers can suggest corrections from any product page (no account; rate limited; honeypot).
 
 ## Tests
 

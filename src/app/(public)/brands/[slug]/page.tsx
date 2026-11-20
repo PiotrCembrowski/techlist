@@ -1,5 +1,11 @@
 import { ExternalLink } from "lucide-react";
 import type { Metadata } from "next";
+import { getIndexability } from "@/modules/seo/indexability";
+import { emitsStructuredData, pageMetadata } from "@/modules/seo/metadata";
+import { breadcrumbList } from "@/modules/seo/structured-data";
+import { JsonLd } from "@/components/seo/json-ld";
+import { getEnv } from "@/config/env";
+import { countIndexableProducts } from "@/modules/seo/queries";
 import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
 import { cache } from "react";
@@ -20,17 +26,30 @@ import { listFeaturedComparisons } from "@/modules/comparisons/service";
 type Props = { params: Promise<{ slug: string }> };
 
 const load = cache((slug: string) => getBrandPageData(getDb(), slug));
+const indexableOf = cache(async (slug: string) => {
+  const page = await load(slug);
+  return page.kind === "ok" ? countIndexableProducts(getDb(), { brandId: page.data.brand.id }) : 0;
+});
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const page = await load((await params).slug);
   if (page.kind !== "ok") return {};
   const { brand } = page.data;
-  return {
+  const indexableProducts = await indexableOf(brand.slug);
+  return pageMetadata({
     title: brand.name,
     description: brand.description ?? `${brand.name} products with structured specifications.`,
-    alternates: { canonical: `/brands/${brand.slug}` },
-    ...(brand.isDemo ? { robots: { index: false, follow: false } } : {}),
-  };
+    path: `/brands/${brand.slug}`,
+    indexability: getIndexability({
+      kind: "brand",
+      isActive: true,
+      isDemo: brand.isDemo,
+      indexableProducts,
+    }),
+    images: brand.logoImageKey
+      ? [{ url: mediaUrl(brand.logoImageKey), alt: `${brand.name} logo` }]
+      : undefined,
+  });
 }
 
 export default async function BrandPage({ params }: Props) {
@@ -38,6 +57,11 @@ export default async function BrandPage({ params }: Props) {
   if (page.kind === "redirect") permanentRedirect(page.to);
   if (page.kind === "not_found") notFound();
   const { brand, categories, families, latestIds, discontinuedIds, productCount } = page.data;
+  const crumbs = [
+    { label: "Home", href: "/" },
+    { label: "Brands", href: "/brands" },
+    { label: brand.name },
+  ];
   const db = getDb();
   const opts = await getCatalogOptions();
   const [latest, discontinued, comparisons] = await Promise.all([
@@ -50,13 +74,17 @@ export default async function BrandPage({ params }: Props) {
   return (
     <>
       <Container className="flex flex-col gap-8 pt-10">
-        <Breadcrumbs
-          items={[
-            { label: "Home", href: "/" },
-            { label: "Brands", href: "/brands" },
-            { label: brand.name },
-          ]}
-        />
+        {emitsStructuredData(
+          getIndexability({
+            kind: "brand",
+            isActive: true,
+            isDemo: brand.isDemo,
+            indexableProducts: await indexableOf(brand.slug),
+          }),
+        ) ? (
+          <JsonLd data={breadcrumbList(getEnv().SITE_URL, crumbs, `/brands/${brand.slug}`)} />
+        ) : null}
+        <Breadcrumbs items={crumbs} />
         <div className="grid gap-8 md:grid-cols-[160px_minmax(0,1fr)]">
           {brand.logoImageKey ? (
             <Blueprint className="flex aspect-square items-center justify-center bg-background p-6">

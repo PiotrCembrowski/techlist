@@ -22,6 +22,27 @@
       "when": 1795108380538,
       "tag": "0002_triggers",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1795193685620,
+      "tag": "0003_indexable_products_view",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1795194605399,
+      "tag": "0004_search_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1795194608961,
+      "tag": "0005_search_text_and_faster_views",
+      "breakpoints": true
     }
   ]
 }

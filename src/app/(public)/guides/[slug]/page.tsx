@@ -1,4 +1,9 @@
 import type { Metadata } from "next";
+import { getIndexability } from "@/modules/seo/indexability";
+import { emitsStructuredData, pageMetadata } from "@/modules/seo/metadata";
+import { articleJsonLd, breadcrumbList } from "@/modules/seo/structured-data";
+import { JsonLd } from "@/components/seo/json-ld";
+import { getEnv } from "@/config/env";
 import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
 import { cache } from "react";
@@ -19,12 +24,19 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const r = await load((await params).slug);
   if (r.kind !== "ok") return {};
   const g = r.guide;
-  return {
+  return pageMetadata({
     title: g.seoTitle ?? g.title,
-    description: g.seoDescription ?? g.summary ?? undefined,
-    alternates: { canonical: `/guides/${g.slug}` },
-    ...(g.isDemo ? { robots: { index: false, follow: false } } : {}),
-  };
+    description:
+      g.seoDescription ?? g.summary ?? `${g.title}: a guide to reading technology specifications.`,
+    path: `/guides/${g.slug}`,
+    type: "article",
+    // getPublishedGuide only returns published guides.
+    indexability: getIndexability({
+      kind: "guide",
+      publicationStatus: "published",
+      isDemo: g.isDemo,
+    }),
+  });
 }
 
 export default async function GuidePage({ params }: Props) {
@@ -32,15 +44,30 @@ export default async function GuidePage({ params }: Props) {
   if (r.kind === "redirect") permanentRedirect(r.to);
   if (r.kind === "not_found") notFound();
   const g = r.guide;
+  const crumbs = [
+    { label: "Home", href: "/" },
+    { label: "Guides", href: "/guides" },
+    { label: g.title },
+  ];
   return (
     <Container className="flex flex-col gap-6 py-10">
-      <Breadcrumbs
-        items={[
-          { label: "Home", href: "/" },
-          { label: "Guides", href: "/guides" },
-          { label: g.title },
-        ]}
-      />
+      {emitsStructuredData(
+        getIndexability({ kind: "guide", publicationStatus: "published", isDemo: g.isDemo }),
+      ) ? (
+        <>
+          <JsonLd data={breadcrumbList(getEnv().SITE_URL, crumbs, `/guides/${g.slug}`)} />
+          <JsonLd
+            data={articleJsonLd(getEnv().SITE_URL, {
+              path: `/guides/${g.slug}`,
+              title: g.title,
+              description: g.seoDescription ?? g.summary,
+              publishedAt: g.publishedAt,
+              updatedAt: g.updatedAt,
+            })}
+          />
+        </>
+      ) : null}
+      <Breadcrumbs items={crumbs} />
       <article className="grid gap-10 lg:grid-cols-12">
         <div className="flex flex-col gap-4 lg:col-span-8">
           <span className="flex items-center gap-3 text-sm text-muted-foreground">

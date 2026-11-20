@@ -1,5 +1,10 @@
 import { ArrowDown, ArrowUp, Plus } from "lucide-react";
 import type { Metadata } from "next";
+import { getIndexability } from "@/modules/seo/indexability";
+import { emitsStructuredData, pageMetadata } from "@/modules/seo/metadata";
+import { breadcrumbList } from "@/modules/seo/structured-data";
+import { JsonLd } from "@/components/seo/json-ld";
+import { indexableProductIds } from "@/modules/seo/queries";
 import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
 import { cache } from "react";
@@ -34,17 +39,25 @@ const load = cache(async (param: string) => {
 });
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { result } = await load((await params).slugs);
+  const { parsed, result } = await load((await params).slugs);
   if (!result || (result.kind !== "ok" && result.kind !== "mixed_categories")) return {};
   const title = result.products.map((p) => `${p.brand.name} ${p.name}`).join(" vs ");
-  return {
+  const indexable = await indexableProductIds(
+    getDb(),
+    result.products.map((p) => p.id),
+  );
+  return pageMetadata({
     title,
     description: `${title}: specifications side by side, with differences highlighted.`,
-    alternates: { canonical: comparisonPath(result.products.map((p) => p.slug)) },
-    ...(result.kind === "mixed_categories" || result.products.some((p) => p.isDemo)
-      ? { robots: { index: false, follow: true } }
-      : {}),
-  };
+    path: comparisonPath(result.products.map((p) => p.slug)),
+    indexability: getIndexability({
+      kind: "comparison",
+      // Products from different categories are never compared as an indexable page.
+      productsIndexable:
+        result.kind === "ok" ? result.products.map((p) => indexable.has(p.id)) : [false],
+      canonicalOrder: parsed.ok && parsed.isCanonical,
+    }),
+  });
 }
 
 function BetterMark({ row }: { row: CompareRow }) {
@@ -197,6 +210,15 @@ export default async function ComparisonPage({ params }: Props) {
   }
 
   const { products, groups, category } = result;
+  const indexable = await indexableProductIds(
+    getDb(),
+    products.map((p) => p.id),
+  );
+  const fullCrumbs = [
+    ...crumbs,
+    { label: category.name, href: `/categories/${category.slug}` },
+    { label: "Comparison" },
+  ];
   const slugs = products.map((p) => p.slug);
   const trayItems = products.map((p) => ({
     slug: p.slug,
@@ -215,13 +237,22 @@ export default async function ComparisonPage({ params }: Props) {
   return (
     <Container className="flex flex-col gap-6 py-10">
       <TraySync items={trayItems} />
-      <Breadcrumbs
-        items={[
-          ...crumbs,
-          { label: category.name, href: `/categories/${category.slug}` },
-          { label: "Comparison" },
-        ]}
-      />
+      {emitsStructuredData(
+        getIndexability({
+          kind: "comparison",
+          productsIndexable: products.map((p) => indexable.has(p.id)),
+          canonicalOrder: true, // non-canonical URLs were redirected above
+        }),
+      ) ? (
+        <JsonLd
+          data={breadcrumbList(
+            getEnv().SITE_URL,
+            fullCrumbs,
+            comparisonPath(products.map((p) => p.slug)),
+          )}
+        />
+      ) : null}
+      <Breadcrumbs items={fullCrumbs} />
       <div className="flex flex-col gap-2">
         <span className="text-xs font-medium tracking-[0.12em] text-primary uppercase">
           {category.name} · comparison
@@ -237,7 +268,7 @@ export default async function ComparisonPage({ params }: Props) {
       </div>
       <div className="flex flex-wrap items-center justify-between gap-3 border-y py-2">
         <DifferencesToggle targetId="comparison" />
-        <span className="max-w-[640px] text-xs text-muted-foreground sm:text-right">
+        <p className="max-w-[640px] text-xs text-muted-foreground sm:text-right">
           {market !== "ALL" ? (
             <>Prices for {marketName(market)}, in each retailer&rsquo;s currency. </>
           ) : null}
@@ -246,7 +277,7 @@ export default async function ComparisonPage({ params }: Props) {
           <Link href="/affiliate-disclosure" className="text-primary">
             Disclosure
           </Link>
-        </span>
+        </p>
       </div>
 
       <div

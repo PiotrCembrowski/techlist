@@ -96,8 +96,10 @@ test.describe("Catalogue", () => {
 
   test("wrong brand slug redirects permanently; unknown product is a 404", async ({ request }) => {
     const r = await request.get("/products/halden/aera-7-pro", { maxRedirects: 0 });
-    expect([301, 308]).toContain(r.status());
-    expect(r.headers()["location"]).toBe("/products/novik/aera-7-pro");
+    expect(r.status()).toBe(301);
+    expect(new URL(r.headers()["location"]!, "http://x").pathname).toBe(
+      "/products/novik/aera-7-pro",
+    );
     expect((await request.get("/products/novik/does-not-exist")).status()).toBe(404);
   });
 

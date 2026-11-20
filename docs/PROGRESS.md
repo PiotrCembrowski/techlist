@@ -11,12 +11,65 @@
 | 5 Offers & affiliate      | Fresh/stale/expired rules, market grouping, `/go/[offerId]` with host allowlist, clicks, price-history writes. Journey C                                                                                                                                                                          | **Done** |
 | 6A Admin core             | Auth.js credentials + argon2id, `admin:create`, Postgres rate limiter, role checks in every action, CRUD, audit log. Journey D                                                                                                                                                                    | **Done** |
 | 6B Imports & verification | CSV stage/validate/preview/commit, duplicate detection, error report, export with formula-injection guard, review queue, correction form. Journey E                                                                                                                                               | **Done** |
-| 7 SEO & quality           | Metadata, JSON-LD, indexability function, sitemap/robots, slug 301s, axe, security headers/CSP                                                                                                                                                                                                    | Next     |
-| 8 Final                   | Full suite, mobile e2e, all docs, acceptance checklist                                                                                                                                                                                                                                            | —        |
+| 7 SEO & quality           | Metadata, JSON-LD, indexability function, sitemap/robots, slug 301s, axe, security headers/CSP                                                                                                                                                                                                    | **Done** |
+| 8 Final                   | Full suite, mobile e2e, all docs, acceptance checklist                                                                                                                                                                                                                                            | Next     |
 
 Order of work inside each stage: schema/service → tests → UI → e2e journey → gate.
 
 ---
+
+## Stage 7 — gate run 2026-11-20
+
+### Done and verified
+
+| Check                                                                                                       | Command                                            | Result                                                              |
+| ----------------------------------------------------------------------------------------------------------- | -------------------------------------------------- | ------------------------------------------------------------------- |
+| Typecheck / lint / formatting                                                                               | `pnpm typecheck`, `pnpm lint`, `pnpm format:check` | pass                                                                |
+| Unit tests                                                                                                  | `pnpm test:unit`                                   | 150 passed                                                          |
+| Integration tests (real PostgreSQL 16.15)                                                                   | `pnpm test:integration`                            | 142 passed                                                          |
+| E2E — Journeys A–E, accessibility (axe), SEO/security, correction, catalogue, smoke; desktop **and** mobile | `pnpm e2e`                                         | 74 passed                                                           |
+| Migrations from scratch + seed ×3                                                                           | `pnpm db:migrate:fresh && pnpm db:seed` ×3         | runs 2–3: no changes; `pnpm db:generate`: no pending schema changes |
+| Performance                                                                                                 | `pnpm perf:bench` (20,000 products)                | see `docs/PERFORMANCE.md`: search 15–30 ms (was 240–960 ms)         |
+
+Built and covered by tests:
+
+- **Indexability:** one function for every page kind (unit-tested), mirrored once in SQL (`sb_indexable_products`, view `indexable_products`); an integration test checks they agree for every product, including inherited required specs, variant-only values, demo, draft, unverified and inactive-brand cases.
+- **Metadata:** titles, descriptions, canonicals, robots, Open Graph and Twitter on every public page; filtered listings `noindex, follow` with the unfiltered canonical; demo mode forces `noindex, nofollow` site-wide.
+- **Structured data:** Organization + WebSite (SearchAction) on the homepage; BreadcrumbList, Product (with Offers only when fresh, non-demo and in the selected market) and Article on indexable pages; safe serialization; no Review/AggregateRating.
+- **Sitemap:** indexable records only, split into files of ≤ 50,000 URLs (tested with a small limit: no gaps or duplicates), listed in `robots.txt`; empty in demo mode.
+- **301 redirects** for changed slugs, wrong brand segments and non-canonical comparisons (proxy), query string kept.
+- **Security headers:** nonce-based CSP, frame denial, nosniff, referrer policy, COOP, permissions policy, HSTS on https; e2e asserts the headers, a fresh nonce per request and no CSP violations on interactive pages.
+- **Client address:** `TRUSTED_PROXY_HOPS` (spoof-resistant `X-Forwarded-For` handling), unit-tested.
+- **Accessibility:** axe WCAG 2.1 A/AA on 14 public pages × light/dark and 9 admin screens — zero violations after underlining in-text links.
+- **Performance:** benchmark script, search rewritten to index-backed candidates, faster indexability evaluation (`docs/PERFORMANCE.md`).
+
+### Security review against SPEC §13
+
+| Item                                                                                              | Status                                                          |
+| ------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| argon2id, HTTP-only SameSite cookies (Secure on https), session invalidated on deactivation       | verified (6A tests)                                             |
+| Rate limits: login, correction form, search suggestions, imports                                  | verified (tests per limiter)                                    |
+| CSRF: Server Actions' origin check; the only mutating route handler is Auth.js's own (CSRF token) | reviewed                                                        |
+| Zod on every input; parameterised SQL only                                                        | reviewed: the two `sql.raw` uses take a fixed set of type names |
+| Safe redirects; markdown without raw HTML; `dangerouslySetInnerHTML` only for JSON-LD             | verified (tests)                                                |
+| Uploads: magic bytes, size limits, random keys, no SVG                                            | verified (6A tests)                                             |
+| CSV injection on export                                                                           | verified (unit tests)                                           |
+| Security headers incl. CSP and `frame-ancestors 'none'`                                           | verified (e2e)                                                  |
+| Env validated at startup; `.env.example` committed; secrets never committed                       | reviewed                                                        |
+| Structured error logging without personal data or secrets                                         | reviewed: logs carry ids and messages only                      |
+| Transactions for multi-step writes                                                                | reviewed (service convention, audit in the same transaction)    |
+| Backup/restore guide (`docs/DEPLOYMENT.md`)                                                       | **Stage 8**                                                     |
+
+### Done but not verified
+
+- HSTS and `upgrade-insecure-requests` only apply when `SITE_URL` is https; the test environment is http, so they were checked in unit tests only.
+- Structured data was validated by tests against our own builders, not with an external validator (no network access to Google's Rich Results Test here).
+- Docker Compose database — still blocked by the Docker Hub rate limit in this environment.
+
+### Deferred
+
+- `docs/DEPLOYMENT.md` (deployment, proxy hops, backups) and the final acceptance checklist → **Stage 8**.
+- Coverage stored per product (instead of computed) if categories grow far beyond ~10,000 products (`docs/PERFORMANCE.md`).
 
 ## Stage 6B — gate run 2026-11-20
 
@@ -50,7 +103,7 @@ Built and covered by tests:
 
 ### Deferred
 
-- Client addresses come from `X-Forwarded-For`; that is only trustworthy behind a proxy that sets it. To review in the Stage 7 security pass (document the proxy requirement or add a setting).
+- Client addresses come from `X-Forwarded-For` → done in Stage 7 (`TRUSTED_PROXY_HOPS`, D69).
 - Import progress for very large files (commits run inside the request) → later, if measured imports are slow.
 
 ## Stage 6A — gate run 2026-11-20

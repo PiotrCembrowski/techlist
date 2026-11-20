@@ -71,8 +71,10 @@ test.describe("Journey B: comparison", () => {
 
   test("non-canonical order redirects permanently; unknown products 404", async ({ request }) => {
     const r = await request.get("/compare/ridge-7800-vs-ridge-6800", { maxRedirects: 0 });
-    expect([301, 308]).toContain(r.status());
-    expect(r.headers()["location"]).toBe("/compare/ridge-6800-vs-ridge-7800");
+    expect(r.status()).toBe(301);
+    expect(new URL(r.headers()["location"]!, "http://x").pathname).toBe(
+      "/compare/ridge-6800-vs-ridge-7800",
+    );
     expect((await request.get("/compare/ridge-7800-vs-nope")).status()).toBe(404);
     expect((await request.get("/compare/ridge-7800")).status()).toBe(404);
   });

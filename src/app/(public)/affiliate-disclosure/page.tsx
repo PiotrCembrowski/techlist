@@ -1,12 +1,18 @@
 import type { Metadata } from "next";
+import { getIndexability } from "@/modules/seo/indexability";
+import { pageMetadata } from "@/modules/seo/metadata";
 import { StaticPage } from "@/components/content/static-page";
 import { getEnv } from "@/config/env";
 import { siteConfig } from "@/config/site";
 
-export const metadata: Metadata = {
-  title: "Affiliate disclosure",
-  alternates: { canonical: "/affiliate-disclosure" },
-};
+export function generateMetadata(): Metadata {
+  return pageMetadata({
+    title: "Affiliate disclosure",
+    description: "How retailer links and commissions work, and what they never change.",
+    path: "/affiliate-disclosure",
+    indexability: getIndexability({ kind: "content" }),
+  });
+}
 
 export default function AffiliateDisclosurePage() {
   const hours = getEnv().OFFER_STALE_HOURS;

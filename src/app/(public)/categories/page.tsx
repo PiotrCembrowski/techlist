@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { getIndexability } from "@/modules/seo/indexability";
+import { pageMetadata } from "@/modules/seo/metadata";
 import Link from "next/link";
 import { CategoryIcon } from "@/components/product/image-placeholder";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
@@ -6,11 +8,15 @@ import { Container } from "@/components/ui/section";
 import { getDb } from "@/lib/db";
 import { getCategoryTree } from "@/modules/catalog/pages";
 
-export const metadata: Metadata = {
-  title: "Categories",
-  description: "Every product category, with its subcategories.",
-  alternates: { canonical: "/categories" },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const itemCount = (await getCategoryTree(getDb())).length;
+  return pageMetadata({
+    title: "Categories",
+    description: "Every product category, with its subcategories.",
+    path: "/categories",
+    indexability: getIndexability({ kind: "listing", filtered: false, itemCount }),
+  });
+}
 
 export default async function CategoriesIndex() {
   const tree = await getCategoryTree(getDb());

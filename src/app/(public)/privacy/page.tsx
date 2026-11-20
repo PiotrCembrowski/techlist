@@ -1,7 +1,16 @@
 import type { Metadata } from "next";
+import { getIndexability } from "@/modules/seo/indexability";
+import { pageMetadata } from "@/modules/seo/metadata";
 import { StaticPage } from "@/components/content/static-page";
 
-export const metadata: Metadata = { title: "Privacy", alternates: { canonical: "/privacy" } };
+export function generateMetadata(): Metadata {
+  return pageMetadata({
+    title: "Privacy",
+    description: "What this site stores, and what it does not.",
+    path: "/privacy",
+    indexability: getIndexability({ kind: "content" }),
+  });
+}
 
 export default function PrivacyPage() {
   return (

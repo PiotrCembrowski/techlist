@@ -18,13 +18,13 @@ export default defineConfig({
   projects: [
     {
       name: "desktop",
-      testIgnore: /journey-[de]\.spec\.ts/,
+      testIgnore: /journey-[de][-.]/,
       use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } },
     },
-    { name: "mobile", testIgnore: /journey-[de]\.spec\.ts/, use: { ...devices["Pixel 7"] } },
+    { name: "mobile", testIgnore: /journey-[de][-.]/, use: { ...devices["Pixel 7"] } },
     {
       name: "admin-desktop",
-      testMatch: /journey-[de]\.spec\.ts/,
+      testMatch: /journey-[de][-.]/,
       dependencies: ["desktop", "mobile"],
       // Separate login rate-limit buckets per project (the limiter keys on address + email).
       use: {
@@ -35,7 +35,7 @@ export default defineConfig({
     },
     {
       name: "admin-mobile",
-      testMatch: /journey-[de]\.spec\.ts/,
+      testMatch: /journey-[de][-.]/,
       dependencies: ["desktop", "mobile"],
       use: { ...devices["Pixel 7"], extraHTTPHeaders: { "x-forwarded-for": "192.0.2.11" } },
     },

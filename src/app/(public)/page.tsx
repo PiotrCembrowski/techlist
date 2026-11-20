@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { FeaturedComparisons } from "@/components/compare/featured-comparisons";
 import { CategoryIcon } from "@/components/product/image-placeholder";
@@ -17,8 +18,26 @@ import { getProductCards } from "@/modules/catalog/service";
 import { listPublishedGuides } from "@/modules/guides/service";
 import { listFeaturedComparisons } from "@/modules/comparisons/service";
 import { getCatalogStats } from "@/modules/stats/service";
+import { siteConfig } from "@/config/site";
+import { getIndexability } from "@/modules/seo/indexability";
+import { pageMetadata } from "@/modules/seo/metadata";
+import { organizationAndWebsite } from "@/modules/seo/structured-data";
+import { JsonLd } from "@/components/seo/json-ld";
+import { getEnv } from "@/config/env";
 
 const nf = new Intl.NumberFormat("en-GB");
+
+export function generateMetadata(): Metadata {
+  return {
+    ...pageMetadata({
+      title: `${siteConfig.name} — ${siteConfig.tagline}`,
+      description: siteConfig.description,
+      path: "/",
+      indexability: getIndexability({ kind: "content" }),
+    }),
+    title: { absolute: `${siteConfig.name} — ${siteConfig.tagline}` },
+  };
+}
 
 /**
  * Homepage (SPEC §7.1). Every section is backed by real data and omitted when empty.
@@ -50,6 +69,7 @@ export default async function HomePage() {
 
   return (
     <>
+      <JsonLd data={organizationAndWebsite(getEnv().SITE_URL)} />
       <section aria-labelledby="hero-title" className="border-b">
         <div className="drafting-grid mx-auto grid max-w-[1280px] gap-10 px-4 pt-16 pb-14 sm:px-6 md:pt-20 lg:grid-cols-12 lg:gap-6 lg:px-10">
           <div className="flex flex-col gap-5 lg:col-span-8">

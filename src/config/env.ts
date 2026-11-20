@@ -32,6 +32,12 @@ export const envSchema = z.object({
   S3_ENDPOINT: z.url().optional(),
   S3_ACCESS_KEY_ID: z.string().optional(),
   S3_SECRET_ACCESS_KEY: z.string().optional(),
+  /**
+   * How many reverse proxies in front of the app append to X-Forwarded-For. The client address
+   * (used only, hashed, for rate limits) is the entry this many hops from the end. 0 = ignore the
+   * header (all clients share one bucket). Wrong values let clients spoof their address.
+   */
+  TRUSTED_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(1),
   /** Data provider adapters (SPEC §10). Unset = "Not configured"; see docs/DATA_SOURCES.md. */
   MANUFACTURER_FILES_DIR: z.string().optional(),
   LICENSED_FEED_URL: z.url().optional(),

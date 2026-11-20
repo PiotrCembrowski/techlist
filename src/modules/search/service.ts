@@ -70,23 +70,36 @@ type RankedRow = { id: string; exact: boolean; variant_code: string | null };
 export class PostgresSearchService implements SearchService {
   constructor(private readonly db: DbOrTx) {}
 
-  /** Shared ranking query: exact identifiers, then full-text rank, then trigram similarity. */
+  /**
+   * Shared ranking query: exact identifiers, then full-text rank, then trigram similarity.
+   * Candidates come from indexes only (identifier B-trees, the full-text GIN index and the
+   * trigram GIN index on `search_text`), so the cost grows with the matches, not the catalogue.
+   * The similarity scores are then computed for those candidates exactly as before.
+   */
   private async rankProducts(q: string, limit: number, offset: number) {
     const folded = fold(q);
+    const exact = q.trim();
     const tsq = buildPrefixTsQuery(q);
     const tsMatch = tsq ? sql`p.search_vector @@ to_tsquery('simple', ${tsq})` : sql`FALSE`;
     const tsRank = tsq ? sql`ts_rank(p.search_vector, to_tsquery('simple', ${tsq}))` : sql`0`;
+    const candidates = sql`
+      SELECT id FROM products WHERE lower(model_number) = lower(${exact}) OR lower(manufacturer_part_number) = lower(${exact})
+      UNION SELECT product_id FROM product_variants WHERE barcode_gtin = ${exact} OR lower(manufacturer_part_number) = lower(${exact})
+      UNION SELECT id FROM products WHERE ${tsq ? sql`search_vector @@ to_tsquery('simple', ${tsq})` : sql`FALSE`}
+      -- word_similarity(q, brand + name) covers word_similarity(q, name): a longer text never scores lower.
+      UNION SELECT id FROM products WHERE ${folded} <% search_text
+      UNION SELECT id FROM products WHERE model_number % ${folded}`;
     const base = sql`
       FROM products p
       JOIN brands b ON b.id = p.brand_id AND b.is_active
       LEFT JOIN LATERAL (
         SELECT v.variant_code FROM product_variants v
         WHERE v.product_id = p.id AND v.is_active
-          AND (v.barcode_gtin = ${q.trim()} OR lower(v.manufacturer_part_number) = lower(${q.trim()}))
+          AND (v.barcode_gtin = ${exact} OR lower(v.manufacturer_part_number) = lower(${exact}))
         LIMIT 1
       ) vm ON TRUE
       CROSS JOIN LATERAL (
-        SELECT (lower(p.model_number) = lower(${q.trim()}) OR lower(p.manufacturer_part_number) = lower(${q.trim()})
+        SELECT (lower(p.model_number) = lower(${exact}) OR lower(p.manufacturer_part_number) = lower(${exact})
                 OR vm.variant_code IS NOT NULL) AS exact,
                greatest(
                  word_similarity(${folded}, lower(sb_unaccent(p.name))),
@@ -94,16 +107,21 @@ export class PostgresSearchService implements SearchService {
                  coalesce(similarity(${folded}, lower(p.model_number)), 0)
                ) AS sim
       ) m
-      WHERE p.publication_status = 'published'
+      WHERE p.id IN (${candidates})
+        AND p.publication_status = 'published'
         AND (m.exact OR ${tsMatch} OR m.sim >= ${FUZZY_THRESHOLD})`;
-    const [rows, [count]] = await Promise.all([
-      this.db.execute<RankedRow>(sql`
+    // The trigram operators use these thresholds; set them below our own so the index returns a
+    // superset of what the final filter keeps. SET LOCAL needs a transaction.
+    return this.db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT set_config('pg_trgm.word_similarity_threshold', ${String(FUZZY_THRESHOLD)}, true),
+                                  set_config('pg_trgm.similarity_threshold', ${String(FUZZY_THRESHOLD)}, true)`);
+      const rows = await tx.execute<RankedRow>(sql`
         SELECT p.id, m.exact, vm.variant_code ${base}
         ORDER BY m.exact DESC, ${tsRank} DESC, m.sim DESC, p.name, p.id
-        LIMIT ${limit} OFFSET ${offset}`),
-      this.db.execute<{ n: number }>(sql`SELECT count(*)::int AS n ${base}`),
-    ]);
-    return { rows: rows as unknown as RankedRow[], total: Number(count?.n ?? 0) };
+        LIMIT ${limit} OFFSET ${offset}`);
+      const [count] = await tx.execute<{ n: number }>(sql`SELECT count(*)::int AS n ${base}`);
+      return { rows: rows as unknown as RankedRow[], total: Number(count?.n ?? 0) };
+    });
   }
 
   private async matchBrands(q: string, limit: number): Promise<BrandHit[]> {
@@ -143,18 +161,22 @@ export class PostgresSearchService implements SearchService {
 
   private async didYouMean(q: string): Promise<string[]> {
     const folded = fold(q);
-    const rows = await this.db.execute<{ term: string }>(sql`
-      SELECT term FROM (
-        SELECT b.name || ' ' || p.name AS term,
-               word_similarity(${folded}, lower(sb_unaccent(b.name || ' ' || p.name))) AS s
-        FROM products p JOIN brands b ON b.id = p.brand_id
-        WHERE p.publication_status = 'published'
-        UNION ALL
-        SELECT b.name, word_similarity(${folded}, lower(sb_unaccent(b.name))) FROM brands b WHERE b.is_active
-      ) t
-      WHERE s >= 0.25
-      ORDER BY s DESC, term
-      LIMIT 3`);
+    // Index-backed (trigram GIN on search_text) with the operator threshold set to our cut-off.
+    const rows = await this.db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT set_config('pg_trgm.word_similarity_threshold', '0.25', true)`);
+      return tx.execute<{ term: string }>(sql`
+        SELECT term FROM (
+          SELECT b.name || ' ' || p.name AS term,
+                 word_similarity(${folded}, lower(sb_unaccent(b.name || ' ' || p.name))) AS s
+          FROM products p JOIN brands b ON b.id = p.brand_id
+          WHERE p.publication_status = 'published' AND ${folded} <% p.search_text
+          UNION ALL
+          SELECT b.name, word_similarity(${folded}, lower(sb_unaccent(b.name))) FROM brands b WHERE b.is_active
+        ) t
+        WHERE s >= 0.25
+        ORDER BY s DESC, term
+        LIMIT 3`);
+    });
     return rows.map((r) => r.term);
   }
 

@@ -1,4 +1,10 @@
 import type { Metadata } from "next";
+import { getIndexability } from "@/modules/seo/indexability";
+import { emitsStructuredData, pageMetadata } from "@/modules/seo/metadata";
+import { breadcrumbList } from "@/modules/seo/structured-data";
+import { JsonLd } from "@/components/seo/json-ld";
+import { getEnv } from "@/config/env";
+import { countIndexableProducts } from "@/modules/seo/queries";
 import Link from "next/link";
 import { notFound, permanentRedirect, redirect } from "next/navigation";
 import { cache } from "react";
@@ -20,6 +26,12 @@ import { getFilterRanges, listCatalog } from "@/modules/catalog/service";
 type Props = { params: Promise<{ slug: string }>; searchParams: Promise<RawSearchParams> };
 
 const load = cache((slug: string) => getCategoryPageData(getDb(), slug));
+const indexableIn = cache(async (slug: string) => {
+  const page = await load(slug);
+  return page.kind === "ok"
+    ? countIndexableProducts(getDb(), { categoryIds: page.data.scopeIds })
+    : 0;
+});
 
 export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
   const { slug } = await params;
@@ -27,15 +39,22 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
   if (page.kind !== "ok") return {};
   const { category, filterable } = page.data;
   const filtered = isFiltered(parseCatalogFilters(await searchParams, filterable));
-  return {
+  const indexableProducts = await indexableIn(slug);
+  return pageMetadata({
     title: category.seoTitle ?? category.name,
     description:
       category.seoDescription ??
       category.description ??
       `${category.name}: specifications, comparisons and offers.`,
-    alternates: { canonical: `/categories/${category.slug}` },
-    ...(filtered ? { robots: { index: false, follow: true } } : {}),
-  };
+    // Filtered views are noindex, follow, with the unfiltered page as canonical.
+    path: `/categories/${category.slug}`,
+    indexability: getIndexability({
+      kind: "category",
+      isActive: category.isActive,
+      filtered,
+      indexableProducts,
+    }),
+  });
 }
 
 export default async function CategoryPage({ params, searchParams }: Props) {
@@ -48,6 +67,20 @@ export default async function CategoryPage({ params, searchParams }: Props) {
   const path = `/categories/${data.category.slug}`;
   const filters = parseCatalogFilters(raw, data.filterable);
   if (hasEmptyParams(raw)) redirect(`${path}${catalogQueryString(filters)}`);
+  const crumbs = [
+    { label: "Home", href: "/" },
+    { label: "Categories", href: "/categories" },
+    ...data.ancestors.map((a) => ({ label: a.name, href: `/categories/${a.slug}` })),
+    { label: data.category.name },
+  ];
+  const structured = emitsStructuredData(
+    getIndexability({
+      kind: "category",
+      isActive: true,
+      filtered: isFiltered(filters),
+      indexableProducts: await indexableIn(slug),
+    }),
+  );
 
   const db = getDb();
   const opts = await getCatalogOptions();
@@ -62,14 +95,8 @@ export default async function CategoryPage({ params, searchParams }: Props) {
   return (
     <Container className="flex flex-col gap-8 py-10">
       <div className="flex flex-col gap-3">
-        <Breadcrumbs
-          items={[
-            { label: "Home", href: "/" },
-            { label: "Categories", href: "/categories" },
-            ...data.ancestors.map((a) => ({ label: a.name, href: `/categories/${a.slug}` })),
-            { label: data.category.name },
-          ]}
-        />
+        {structured ? <JsonLd data={breadcrumbList(getEnv().SITE_URL, crumbs, path)} /> : null}
+        <Breadcrumbs items={crumbs} />
         <h1 className="text-5xl">{data.category.name}</h1>
         {data.category.description ? (
           <p className="max-w-[640px] text-muted-foreground">{data.category.description}</p>

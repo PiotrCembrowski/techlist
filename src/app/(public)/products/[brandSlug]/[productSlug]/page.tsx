@@ -23,6 +23,9 @@ import { getProductCards, productHref } from "@/modules/catalog/service";
 import { groupOffers } from "@/modules/offers/display";
 import { getProductOffers } from "@/modules/offers/read";
 import { loadProductPage, type RelatedLink } from "@/modules/products/public";
+import { emitsStructuredData, pageMetadata } from "@/modules/seo/metadata";
+import { breadcrumbList, productJsonLd, structuredOffers } from "@/modules/seo/structured-data";
+import { JsonLd } from "@/components/seo/json-ld";
 
 type Props = {
   params: Promise<{ brandSlug: string; productSlug: string }>;
@@ -66,18 +69,19 @@ const LINK_LABEL: Record<string, string> = {
 export async function generateMetadata(props: Props): Promise<Metadata> {
   const page = await resolve(props);
   if (page.kind !== "ok") return {};
-  const { product, brand } = page.data;
-  const title = product.seoTitle ?? `${brand.name} ${product.name} specifications`;
-  return {
-    title,
+  const { product, brand, images } = page.data;
+  const primary = images.find((i) => i.isPrimary) ?? images[0];
+  return pageMetadata({
+    title: product.seoTitle ?? `${brand.name} ${product.name} specifications`,
     description:
       product.seoDescription ??
       product.shortDescription ??
       `${brand.name} ${product.name}${product.modelNumber ? ` (${product.modelNumber})` : ""}: structured, sourced specifications.`,
     // Variants share the product's canonical URL.
-    alternates: { canonical: productHref(brand.slug, product.slug) },
-    ...(product.isDemo ? { robots: { index: false, follow: false } } : {}),
-  };
+    path: productHref(brand.slug, product.slug),
+    indexability: page.data.indexability,
+    images: primary ? [{ url: primary.src, alt: primary.alt }] : undefined,
+  });
 }
 
 function RelatedList({ title, items }: { title: string; items: RelatedLink[] }) {
@@ -127,16 +131,38 @@ export default async function ProductPage(props: Props) {
   const defaultVariant = d.variants.find((v) => v.isDefault) ?? null;
   const current = d.selectedVariant ?? defaultVariant;
 
+  const crumbs = [
+    { label: "Home", href: "/" },
+    ...d.categoryChain.map((c) => ({ label: c.name, href: `/categories/${c.slug}` })),
+    { label: brand.name, href: `/brands/${brand.slug}` },
+    { label: product.name },
+  ];
+  const primaryImage = d.images.find((i) => i.isPrimary) ?? d.images[0];
+
   return (
     <Container className="flex flex-col gap-10 py-8">
-      <Breadcrumbs
-        items={[
-          { label: "Home", href: "/" },
-          ...d.categoryChain.map((c) => ({ label: c.name, href: `/categories/${c.slug}` })),
-          { label: brand.name, href: `/brands/${brand.slug}` },
-          { label: product.name },
-        ]}
-      />
+      {emitsStructuredData(d.indexability) ? (
+        <>
+          <JsonLd data={breadcrumbList(getEnv().SITE_URL, crumbs, base)} />
+          <JsonLd
+            data={productJsonLd(getEnv().SITE_URL, {
+              path: base,
+              name: product.name,
+              brand: brand.name,
+              description: product.shortDescription ?? product.description,
+              modelNumber: product.modelNumber,
+              mpn: product.manufacturerPartNumber,
+              releaseDate: product.releaseDate,
+              category: category?.name ?? null,
+              image: primaryImage?.src ?? null,
+              specs: d.keySpecs.map((k) => ({ label: k.label, value: k.value })),
+              // Only fresh, non-demo offers in the selected market (SPEC §12).
+              offers: structuredOffers(offerRows, opts.market, staleHours, now),
+            })}
+          />
+        </>
+      ) : null}
+      <Breadcrumbs items={crumbs} />
 
       <div className="grid gap-8 lg:grid-cols-12">
         <div className="lg:col-span-5">

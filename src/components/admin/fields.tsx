@@ -217,13 +217,22 @@ export function AdminTable({
   head,
   children,
   empty,
+  label,
 }: {
   head: string[];
   children: ReactNode;
   empty?: string;
+  /** Accessible name of the (horizontally scrollable) table region. */
+  label?: string;
 }) {
   return (
-    <div className="overflow-x-auto border">
+    // Focusable so keyboard users can scroll wide tables on small screens (WCAG 2.1.1).
+    <div
+      role="region"
+      tabIndex={0}
+      aria-label={label ?? `Table: ${head.filter(Boolean).join(", ")}`}
+      className="overflow-x-auto border focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+    >
       <table className="w-full border-collapse text-sm">
         <thead>
           <tr>

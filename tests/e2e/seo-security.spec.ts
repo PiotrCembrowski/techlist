@@ -69,8 +69,12 @@ test.describe("SEO and security", () => {
     const robots = await (await request.get("/robots.txt")).text();
     expect(robots).toMatch(/Disallow: \/admin/);
     expect(robots).toMatch(/Disallow: \/go/);
-    expect(robots).toMatch(/Sitemap: .*\/sitemap\/0\.xml/);
-    const sitemap = await request.get("/sitemap/0.xml");
+    expect(robots).toMatch(/Sitemap: .*\/sitemap\.xml/);
+    const index = await request.get("/sitemap.xml");
+    expect(index.status()).toBe(200);
+    expect(await index.text()).toMatch(/<sitemapindex[\s\S]*\/sitemaps\/0\.xml/);
+    expect((await request.get("/sitemaps/1.xml")).status()).toBe(404);
+    const sitemap = await request.get("/sitemaps/0.xml");
     expect(sitemap.status()).toBe(200);
     // Demo data is enabled for e2e: nothing is listed and every page is noindex.
     expect(await sitemap.text()).not.toContain("<loc>");

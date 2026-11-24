@@ -70,7 +70,7 @@ The app validates all variables at startup and refuses to start with a readable 
    the first account is the owner). There is no default account.
 4. Create your sources (with licence details and "usage permitted"), categories, specification
    definitions, brands and retailers in the admin, or import CSV files.
-5. Check `/api/health`, `/robots.txt` and `/sitemap/0.xml`.
+5. Check `/api/health`, `/robots.txt` and `/sitemap.xml` (the index; files are `/sitemaps/0.xml`, …).
 
 Do not run `pnpm db:seed` against a real catalogue: it loads fictional demo data.
 

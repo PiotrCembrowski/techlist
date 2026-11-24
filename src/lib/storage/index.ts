@@ -20,7 +20,11 @@ export function isValidStorageKey(key: string): boolean {
   return KEY_PATTERN.test(key);
 }
 
-const EXT_TYPE: Record<string, string> = { jpg: "image/jpeg", png: "image/png", webp: "image/webp" };
+const EXT_TYPE: Record<string, string> = {
+  jpg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+};
 
 export class LocalStorageDriver implements StorageDriver {
   readonly name = "local";
@@ -29,7 +33,8 @@ export class LocalStorageDriver implements StorageDriver {
   private resolve(key: string) {
     if (!isValidStorageKey(key)) throw new Error("Invalid storage key");
     const full = path.resolve(this.root, key);
-    if (!full.startsWith(path.resolve(this.root) + path.sep)) throw new Error("Invalid storage key");
+    if (!full.startsWith(path.resolve(this.root) + path.sep))
+      throw new Error("Invalid storage key");
     return full;
   }
 
@@ -81,16 +86,24 @@ export class S3StorageDriver implements StorageDriver {
   async put(key: string, body: Uint8Array, contentType: string) {
     if (!isValidStorageKey(key)) throw new Error("Invalid storage key");
     const { PutObjectCommand } = await import("@aws-sdk/client-s3");
-    await (await this.clientPromise).send(new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: body, ContentType: contentType }));
+    await (
+      await this.clientPromise
+    ).send(
+      new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: body, ContentType: contentType }),
+    );
   }
 
   async get(key: string) {
     if (!isValidStorageKey(key)) return null;
     const { GetObjectCommand } = await import("@aws-sdk/client-s3");
     try {
-      const res = await (await this.clientPromise).send(new GetObjectCommand({ Bucket: this.bucket, Key: key }));
+      const res = await (
+        await this.clientPromise
+      ).send(new GetObjectCommand({ Bucket: this.bucket, Key: key }));
       const bytes = await res.Body?.transformToByteArray();
-      return bytes ? { body: bytes, contentType: res.ContentType ?? EXT_TYPE[key.split(".").pop()!]! } : null;
+      return bytes
+        ? { body: bytes, contentType: res.ContentType ?? EXT_TYPE[key.split(".").pop()!]! }
+        : null;
     } catch {
       return null;
     }
@@ -99,7 +112,9 @@ export class S3StorageDriver implements StorageDriver {
   async delete(key: string) {
     if (!isValidStorageKey(key)) return;
     const { DeleteObjectCommand } = await import("@aws-sdk/client-s3");
-    await (await this.clientPromise).send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key }));
+    await (
+      await this.clientPromise
+    ).send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key }));
   }
 }
 
@@ -109,7 +124,8 @@ export function getStorage(): StorageDriver {
   if (driver) return driver;
   const env = getEnv();
   if (env.STORAGE_DRIVER === "s3") {
-    if (!env.S3_BUCKET || !env.S3_REGION) throw new Error("STORAGE_DRIVER=s3 requires S3_BUCKET and S3_REGION");
+    if (!env.S3_BUCKET || !env.S3_REGION)
+      throw new Error("STORAGE_DRIVER=s3 requires S3_BUCKET and S3_REGION");
     driver = new S3StorageDriver(env.S3_BUCKET, {
       region: env.S3_REGION,
       endpoint: env.S3_ENDPOINT,
@@ -117,7 +133,9 @@ export function getStorage(): StorageDriver {
       secretAccessKey: env.S3_SECRET_ACCESS_KEY,
     });
   } else {
-    driver = new LocalStorageDriver(path.resolve(/* turbopackIgnore: true */ process.cwd(), env.STORAGE_LOCAL_DIR));
+    driver = new LocalStorageDriver(
+      path.resolve(/* turbopackIgnore: true */ process.cwd(), env.STORAGE_LOCAL_DIR),
+    );
   }
   return driver;
 }
@@ -131,8 +149,12 @@ export type ImageKind = { ext: "jpg" | "png" | "webp"; contentType: string };
 /** Detects the real file type from magic bytes. SVG and everything else is refused (XSS risk). */
 export function sniffImage(bytes: Uint8Array): ImageKind | null {
   const b = bytes;
-  if (b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return { ext: "jpg", contentType: "image/jpeg" };
-  if (b.length >= 8 && [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a].every((v, i) => b[i] === v)) {
+  if (b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff)
+    return { ext: "jpg", contentType: "image/jpeg" };
+  if (
+    b.length >= 8 &&
+    [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a].every((v, i) => b[i] === v)
+  ) {
     return { ext: "png", contentType: "image/png" };
   }
   if (
@@ -145,7 +167,8 @@ export function sniffImage(bytes: Uint8Array): ImageKind | null {
   return null;
 }
 
-export type UploadCheck = { ok: true; kind: ImageKind; bytes: Uint8Array } | { ok: false; message: string };
+export type UploadCheck =
+  { ok: true; kind: ImageKind; bytes: Uint8Array } | { ok: false; message: string };
 
 /** Validates an uploaded File: size, declared MIME type and magic bytes must agree. */
 export async function checkImageUpload(file: File | null | undefined): Promise<UploadCheck> {

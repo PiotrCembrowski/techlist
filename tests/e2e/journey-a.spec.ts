@@ -90,7 +90,7 @@ test.describe("Catalogue", () => {
 
   test("a product with missing data says so honestly", async ({ page }) => {
     await page.goto("/products/corvala/strand-s");
-    await expect(page.getByText("Needs review").first()).toBeVisible();
+    await expect(page.getByText("Not verified yet").first()).toBeVisible();
     await expect(specValue(page, "RAM")).toHaveText("Not available");
   });
 
@@ -161,6 +161,6 @@ test.describe("Catalogue", () => {
       .getByRole("contentinfo")
       .getByRole("link", { name: "Data & verification policy" })
       .click();
-    await expect(page.getByRole("heading", { name: "Verification statuses" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Verification", exact: true })).toBeVisible();
   });
 });

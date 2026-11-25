@@ -118,7 +118,7 @@ describe("products import: the sample file", () => {
       .where(eq(products.modelNumber, "NK14-2609"));
     expect(kestrel).toMatchObject({
       name: "Kestrel 14",
-      publicationStatus: "draft",
+      status: "needs_review",
       isDemo: true,
       releaseDate: "2026-09-01",
     });

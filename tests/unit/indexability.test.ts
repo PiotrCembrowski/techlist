@@ -3,30 +3,26 @@ import { getIndexability, requiredCoverage } from "@/modules/seo/indexability";
 
 const product = {
   kind: "product" as const,
-  publicationStatus: "published",
+  status: "published",
   isDemo: false,
   brandActive: true,
-  verificationStatus: "verified",
   requiredTotal: 10,
   requiredPresent: 6,
 };
 
 describe("product indexability", () => {
-  it("is indexable when published, real, verified or partially verified, with ≥ 60 % core specs", () => {
+  it("is indexable when published (which implies verified), real, with ≥ 60 % core specs", () => {
     expect(getIndexability(product)).toEqual({ index: true, follow: true, reason: null });
-    expect(getIndexability({ ...product, verificationStatus: "partially_verified" }).index).toBe(
-      true,
-    );
     expect(getIndexability({ ...product, requiredTotal: 0, requiredPresent: 0 }).index).toBe(true);
   });
   it.each([
-    [{ publicationStatus: "draft" }, "not published"],
-    [{ publicationStatus: "archived" }, "not published"],
+    [{ status: "draft" }, "not published"],
+    [{ status: "needs_review" }, "not published"],
+    [{ status: "verified" }, "not published"],
+    [{ status: "rejected" }, "not published"],
+    [{ status: "archived" }, "not published"],
     [{ brandActive: false }, "not published"],
     [{ isDemo: true }, "demo record"],
-    [{ verificationStatus: "needs_review" }, "not verified"],
-    [{ verificationStatus: "draft" }, "not verified"],
-    [{ verificationStatus: "rejected" }, "not verified"],
     [{ requiredPresent: 5 }, "too few core specifications"],
   ])("is not indexable when %o", (patch, reason) => {
     const r = getIndexability({ ...product, ...patch });
@@ -35,7 +31,8 @@ describe("product indexability", () => {
   });
   it("demo and unpublished products are also nofollow", () => {
     expect(getIndexability({ ...product, isDemo: true }).follow).toBe(false);
-    expect(getIndexability({ ...product, verificationStatus: "draft" }).follow).toBe(true);
+    expect(getIndexability({ ...product, status: "draft" }).follow).toBe(false);
+    expect(getIndexability({ ...product, requiredPresent: 0 }).follow).toBe(true);
   });
   it("computes coverage", () => {
     expect(requiredCoverage(3, 5)).toBe(0.6);

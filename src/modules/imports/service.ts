@@ -552,7 +552,7 @@ export async function importErrorReportCsv(
     out.push([r.rowNumber, r.action ?? "", problems, ...headers.map((h) => r.raw[h] ?? "")]);
   }
   const base =
-    job.fileName
+    (job.fileName ?? "import")
       .replace(/\.csv$/i, "")
       .replace(/[^\w.-]+/g, "_")
       .slice(0, 80) || "import";

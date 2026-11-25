@@ -224,11 +224,7 @@ export default async function ProductPage(props: Props) {
             <div className="flex items-center gap-2 px-3 py-1.5">
               <dt className="sr-only">Verification</dt>
               <dd className="flex items-center gap-2">
-                <VerificationBadge
-                  status={product.verificationStatus}
-                  verifiedAt={product.lastVerifiedAt}
-                  linkToPolicy
-                />
+                <VerificationBadge verifiedAt={product.lastVerifiedAt} linkToPolicy />
                 {d.sources.length ? (
                   <a href="#sources" className="text-primary">
                     {d.sources.length} {d.sources.length === 1 ? "source" : "sources"}
@@ -355,12 +351,7 @@ export default async function ProductPage(props: Props) {
             <h2 id="sources-title" className="text-xl">
               Data sources
             </h2>
-            <VerificationBadge
-              status={product.verificationStatus}
-              verifiedAt={product.lastVerifiedAt}
-              framed
-              className="w-fit"
-            />
+            <VerificationBadge verifiedAt={product.lastVerifiedAt} framed className="w-fit" />
             {d.sources.length ? (
               <ul className="flex flex-col gap-2 text-sm">
                 {d.sources.map((s) => (

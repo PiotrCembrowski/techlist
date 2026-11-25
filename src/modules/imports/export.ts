@@ -106,7 +106,7 @@ export async function exportProductsCsv(db: DbOrTx, categorySlug: string): Promi
       SELECT s.source_name, r.source_url FROM product_source_records r JOIN sources s ON s.id = r.source_id
       WHERE r.product_id = p.id AND r.variant_id IS NULL ORDER BY s.source_name LIMIT 1
     ) src ON true
-    WHERE p.category_id = ${category.id} AND p.publication_status <> 'archived'
+    WHERE p.category_id = ${category.id} AND p.status <> 'archived'
     ORDER BY b.name, p.name, v.is_default DESC NULLS LAST, v.variant_code
     LIMIT ${MAX_EXPORT_ROWS}`);
   const productIds = [...new Set(rows.map((r) => r.product_id))];

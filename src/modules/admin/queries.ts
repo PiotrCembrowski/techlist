@@ -6,8 +6,7 @@ import type { DbOrTx } from "@/lib/db";
 export async function getDashboardStats(db: DbOrTx, staleHours: number) {
   const [row] = await db.execute<Record<string, number | Record<string, number>>>(sql`
     SELECT
-      (SELECT coalesce(jsonb_object_agg(publication_status, n), '{}') FROM (SELECT publication_status, count(*)::int n FROM products GROUP BY 1) t) AS by_publication,
-      (SELECT coalesce(jsonb_object_agg(verification_status, n), '{}') FROM (SELECT verification_status, count(*)::int n FROM products GROUP BY 1) t) AS by_verification,
+      (SELECT coalesce(jsonb_object_agg(status, n), '{}') FROM (SELECT status, count(*)::int n FROM products GROUP BY 1) t) AS by_status,
       (SELECT count(*)::int FROM product_variants) AS variants,
       (SELECT count(*)::int FROM retailers WHERE is_active) AS active_retailers,
       (SELECT count(*)::int FROM retailer_offers WHERE is_active AND (expires_at IS NULL OR expires_at > now())) AS active_offers,
@@ -17,8 +16,7 @@ export async function getDashboardStats(db: DbOrTx, staleHours: number) {
       (SELECT count(*)::int FROM review_items WHERE status = 'open') AS open_reviews`);
   const r = row as Record<string, unknown>;
   return {
-    byPublication: (r.by_publication ?? {}) as Record<string, number>,
-    byVerification: (r.by_verification ?? {}) as Record<string, number>,
+    byStatus: (r.by_status ?? {}) as Record<string, number>,
     variants: Number(r.variants),
     activeRetailers: Number(r.active_retailers),
     activeOffers: Number(r.active_offers),
@@ -68,8 +66,7 @@ export async function listAuditLogs(
 
 export interface AdminProductFilters {
   q?: string | null;
-  publication?: string | null;
-  verification?: string | null;
+  status?: string | null;
   page?: number;
 }
 
@@ -83,8 +80,7 @@ export async function listProductsAdmin(db: DbOrTx, f: AdminProductFilters) {
       sql`(lower(p.name) LIKE ${like} OR lower(p.model_number) LIKE ${like} OR lower(b.name) LIKE ${like} OR p.slug LIKE ${like})`,
     );
   }
-  if (f.publication) conds.push(sql`p.publication_status = ${f.publication}`);
-  if (f.verification) conds.push(sql`p.verification_status = ${f.verification}`);
+  if (f.status) conds.push(sql`p.status = ${f.status}`);
   const where = sql.join(conds, sql` AND `);
   const [rows, [total]] = await Promise.all([
     db.execute<{
@@ -95,12 +91,11 @@ export async function listProductsAdmin(db: DbOrTx, f: AdminProductFilters) {
       brand_name: string;
       brand_slug: string;
       category_name: string;
-      publication_status: string;
-      verification_status: string;
+      status: string;
       updated_at: string;
     }>(sql`
       SELECT p.id, p.name, p.slug, p.model_number, b.name AS brand_name, b.slug AS brand_slug, c.name AS category_name,
-             p.publication_status, p.verification_status, p.updated_at::text
+             p.status, p.updated_at::text
       FROM products p JOIN brands b ON b.id = p.brand_id JOIN categories c ON c.id = p.category_id
       WHERE ${where} ORDER BY p.updated_at DESC, p.id LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}`),
     db.execute<{ n: number }>(sql`

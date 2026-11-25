@@ -18,7 +18,6 @@ export interface ComparedProduct {
   href: string;
   modelNumber: string | null;
   releaseDate: string | null;
-  verificationStatus: string;
   lastVerifiedAt: Date | null;
   isDemo: boolean;
   brand: { slug: string; name: string };
@@ -44,7 +43,6 @@ type Row = {
   name: string;
   model_number: string | null;
   release_date: string | null;
-  verification_status: string;
   last_verified_at: string | null;
   is_demo: boolean;
   brand_slug: string;
@@ -67,11 +65,11 @@ export async function compareProducts(
 ): Promise<ComparisonResult> {
   const wanted = canonicalSlugs(slugs).slice(0, MAX_COMPARE);
   const rows = (await db.execute<Row>(sql`
-    SELECT p.id, p.slug, p.name, p.model_number, p.release_date::text, p.verification_status,
+    SELECT p.id, p.slug, p.name, p.model_number, p.release_date::text,
            p.last_verified_at::text, p.is_demo, b.slug AS brand_slug, b.name AS brand_name,
            c.id AS category_id, c.slug AS category_slug, c.name AS category_name, c.icon AS category_icon
     FROM products p JOIN brands b ON b.id = p.brand_id AND b.is_active JOIN categories c ON c.id = p.category_id
-    WHERE p.slug = ANY(${sql.param(wanted)}::text[]) AND p.publication_status = 'published'`)) as unknown as Row[];
+    WHERE p.slug = ANY(${sql.param(wanted)}::text[]) AND p.status = 'published'`)) as unknown as Row[];
 
   if (rows.length < wanted.length) {
     const found = new Set(rows.map((r) => r.slug));
@@ -107,7 +105,6 @@ export async function compareProducts(
       href: productHref(r.brand_slug, r.slug),
       modelNumber: r.model_number,
       releaseDate: r.release_date,
-      verificationStatus: r.verification_status,
       lastVerifiedAt: r.last_verified_at ? new Date(r.last_verified_at) : null,
       isDemo: r.is_demo,
       brand: { slug: r.brand_slug, name: r.brand_name },
@@ -182,7 +179,7 @@ export async function listFeaturedComparisons(
            array_agg(p.name ORDER BY p.slug) AS names,
            array_agg(b.name ORDER BY p.slug) AS brand_names
     FROM featured_comparisons f
-    JOIN products p ON p.id = ANY(f.product_ids) AND p.publication_status = 'published'
+    JOIN products p ON p.id = ANY(f.product_ids) AND p.status = 'published'
     JOIN brands b ON b.id = p.brand_id AND b.is_active
     WHERE f.is_active
     GROUP BY f.id

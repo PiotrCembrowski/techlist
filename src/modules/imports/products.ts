@@ -862,16 +862,20 @@ export async function applyProductPlan(
   let reviewItems = 0;
   let productId = p.productId ?? (p.groupKey ? state.created.get(p.groupKey) : undefined) ?? null;
   if (!productId) {
-    const created = await createProduct(ctx, {
-      brandId: p.brandId!,
-      categoryId: p.categoryId!,
-      name: d.productName,
-      modelNumber: d.modelNumber,
-      manufacturerPartNumber: d.variant ? null : d.mpn,
-      productStatus: d.productStatus ?? "unknown",
-      releaseDate: d.releaseDate,
-      isDemo: d.isDemo ?? false,
-    });
+    const created = await createProduct(
+      ctx,
+      {
+        brandId: p.brandId!,
+        categoryId: p.categoryId!,
+        name: d.productName,
+        modelNumber: d.modelNumber,
+        manufacturerPartNumber: d.variant ? null : d.mpn,
+        productStatus: d.productStatus ?? "unknown",
+        releaseDate: d.releaseDate,
+        isDemo: d.isDemo ?? false,
+      },
+      { status: "needs_review" },
+    );
     productId = created.id;
     if (p.groupKey) state.created.set(p.groupKey, productId);
     await createReviewItem(ctx.db, {

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CATALOG_STATUSES } from "@/modules/products/status";
 import { countryCodeSchema, gtinSchema, optionalText, slugSchema } from "@/lib/validation";
 
 export const variantBaseSchema = z.object({
@@ -14,7 +15,11 @@ export const variantBaseSchema = z.object({
   barcodeGtin: gtinSchema.nullish().transform((v) => v ?? null),
   sku: optionalText(80),
   isDefault: z.boolean().default(false),
-  isActive: z.boolean().default(true),
+  /**
+   * Only `published` variants are public (and only on published products). Variants added by an
+   * editor or a CSV import default to published, as before; provider imports pass needs_review.
+   */
+  status: z.enum(CATALOG_STATUSES).default("published"),
 });
 
 export const variantUpdateSchema = variantBaseSchema.partial();

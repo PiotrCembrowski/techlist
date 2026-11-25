@@ -38,17 +38,26 @@ async function productInfo(db: DbOrTx, productId: string | null | undefined) {
     brand: string;
     slug: string;
     brand_slug: string;
-    publication_status: string;
+    status: string;
   }>(sql`
-    SELECT p.id, p.name, b.name AS brand, p.slug, b.slug AS brand_slug, p.publication_status
+    SELECT p.id, p.name, b.name AS brand, p.slug, b.slug AS brand_slug, p.status
     FROM products p JOIN brands b ON b.id = p.brand_id WHERE p.id = ${productId}`);
   if (!p) return null;
   return {
     id: p.id,
     name: p.name,
     brand: p.brand,
-    href: p.publication_status === "published" ? `/products/${p.brand_slug}/${p.slug}` : null,
+    href: p.status === "published" ? `/products/${p.brand_slug}/${p.slug}` : null,
   };
+}
+
+async function sourceName(db: DbOrTx, sourceId: unknown): Promise<string | null> {
+  if (typeof sourceId !== "string") return null;
+  const [s] = await db
+    .select({ name: sources.sourceName })
+    .from(sources)
+    .where(eq(sources.id, sourceId));
+  return s?.name ?? null;
 }
 
 /** Everything the review screen shows for one item, by type. */
@@ -173,7 +182,7 @@ export async function getReviewDetails(db: DbOrTx, item: ReviewItem): Promise<Re
         ...base,
         product,
         facts: [
-          { label: "Created by", value: p.source === "import" ? "CSV import (draft)" : "—" },
+          { label: "Created by", value: p.source === "import" ? "Import (needs review)" : "—" },
           ...(product
             ? [
                 {
@@ -184,8 +193,8 @@ export async function getReviewDetails(db: DbOrTx, item: ReviewItem): Promise<Re
               ]
             : []),
         ],
-        approveLabel: "Approve and publish",
-        rejectLabel: "Archive",
+        approveLabel: "Verify and publish",
+        rejectLabel: "Reject product",
       };
     }
     case "correction": {
@@ -213,6 +222,47 @@ export async function getReviewDetails(db: DbOrTx, item: ReviewItem): Promise<Re
         canMarkVerified: Boolean(p.key),
         approveLabel: p.key ? "Apply correction" : "Mark as handled",
         rejectLabel: "Reject",
+      };
+    }
+    case "field_conflict": {
+      const product = await productInfo(db, p.productId as string);
+      const source = await sourceName(db, p.sourceId);
+      const show = (v: unknown) => (v === null || v === undefined || v === "" ? "—" : String(v));
+      return {
+        ...base,
+        product,
+        facts: [
+          { label: "Field", value: String(p.field) + (p.variantId ? " (variant)" : "") },
+          { label: "Current value", value: show(p.current) },
+          { label: "Proposed value", value: show(p.proposed) },
+          { label: "Source", value: source ?? "—" },
+        ],
+        editable: {
+          label: "Value to apply",
+          defaultValue: show(p.proposed) === "—" ? "" : String(p.proposed),
+          hint: "Check it against the source first. Empty clears the field.",
+        },
+        approveLabel: "Apply value",
+        rejectLabel: "Keep current value",
+      };
+    }
+    case "image_rights": {
+      const product = await productInfo(db, p.productId as string);
+      const url = typeof p.remoteUrl === "string" ? p.remoteUrl : "";
+      return {
+        ...base,
+        product,
+        facts: [
+          { label: "Image", value: url, href: url },
+          { label: "Provider", value: String(p.provider ?? "—") },
+          { label: "Author", value: String(p.author ?? "not stated") },
+          { label: "Licence", value: String(p.licenseType ?? "not stated") },
+          ...(typeof p.licenseUrl === "string"
+            ? [{ label: "Licence terms", value: p.licenseUrl, href: p.licenseUrl }]
+            : []),
+        ],
+        approveLabel: "Rights confirmed: show image",
+        rejectLabel: "Do not use image",
       };
     }
     case "duplicate_candidate":

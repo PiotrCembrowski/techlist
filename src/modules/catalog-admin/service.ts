@@ -355,9 +355,10 @@ export async function deleteProductImage(ctx: ServiceContext, imageId: string) {
     });
     return img;
   });
-  await getStorage()
-    .delete(removed.storageKey)
-    .catch(() => {});
+  if (removed.storageKey)
+    await getStorage()
+      .delete(removed.storageKey)
+      .catch(() => {});
 }
 
 export async function setBrandLogo(ctx: ServiceContext, brandId: string, file: File | null) {

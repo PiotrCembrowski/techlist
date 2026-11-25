@@ -43,6 +43,27 @@
       "when": 1795194608961,
       "tag": "0005_search_text_and_faster_views",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1795620346802,
+      "tag": "0006_single_status_add",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1795620362543,
+      "tag": "0007_single_status_drop_old",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1795621233823,
+      "tag": "0008_import_foundation",
+      "breakpoints": true
     }
   ]
 }

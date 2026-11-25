@@ -56,8 +56,9 @@ The app validates all variables at startup and refuses to start with a readable 
   migration that has been applied anywhere; add a new one.
 - Run `pnpm db:migrate` as a **release step before** the new version starts serving (e.g. a
   pre-deploy command, a CI job with production database access, or the platform's release phase).
-  Migrations so far only add objects or replace views/functions, so the previous version keeps
-  working while they run.
+  Migrations up to 0006 only add objects or replace views/functions, so the previous version keeps
+  working while they run. **0007 drops the old product status columns** (DECISIONS D77): the
+  version before it stops working once it runs, so run it as part of the same release.
 - `.github/workflows/ci.yml` runs typecheck, lint, formatting, migrations from scratch, the demo seed
   twice, unit and integration tests and the Playwright e2e suite against a PostgreSQL 16 service.
 - `pnpm db:migrate:fresh` (drops the schema) refuses to run with `NODE_ENV=production`.

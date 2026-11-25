@@ -11,12 +11,14 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 import { timestamps } from "./_shared";
 import { products, productVariants, sources } from "./catalog";
 import {
   adminRole,
+  importJobKind,
   importRowAction,
   importStatus,
   importType,
@@ -58,6 +60,14 @@ export const auditLogs = pgTable(
   ],
 );
 
+/**
+ * "queued or running", written with the older enum values only: Postgres refuses a value added by
+ * ALTER TYPE in the same transaction (migration 0008), and an enum→text cast is not immutable.
+ */
+const ACTIVE_JOB = sql.raw(
+  `"import_jobs"."status" NOT IN ('uploaded', 'validated', 'committed', 'failed', 'cancelled')`,
+);
+
 export const importJobs = pgTable(
   "import_jobs",
   {
@@ -66,8 +76,10 @@ export const importJobs = pgTable(
       .notNull()
       .references(() => sources.id, { onDelete: "restrict" }),
     importType: importType().notNull(),
-    fileName: text().notNull(),
-    fileChecksum: text().notNull(),
+    /** `csv`: an uploaded file (admin request); `provider`: a provider job run by the worker. */
+    kind: importJobKind().notNull().default("csv"),
+    fileName: text(),
+    fileChecksum: text(),
     columnMapping: jsonb().$type<Record<string, string>>().notNull().default({}),
     status: importStatus().notNull().default("uploaded"),
     totalRows: integer().notNull().default(0),
@@ -77,9 +89,41 @@ export const importJobs = pgTable(
     createdBy: uuid().references(() => adminUsers.id, { onDelete: "set null" }),
     startedAt: timestamp({ withTimezone: true }),
     completedAt: timestamp({ withTimezone: true }),
+    // ── Provider jobs (kind = provider) ──
+    /** Adapter key, e.g. `icecat`. */
+    provider: text(),
+    /** What to fetch: { mode: "gtin" | "search" | "sync", values / query, categoryId, … }. */
+    query: jsonb().$type<Record<string, unknown>>(),
+    /** Caps for this job: { maxItems, maxRequests, maxMinutes }. */
+    caps: jsonb().$type<Record<string, number>>(),
+    /** Where to resume after a crash or a time-boxed run. */
+    checkpoint: jsonb().$type<Record<string, unknown>>(),
+    /** Prevents queuing the same job twice while one is queued or running. */
+    dedupeKey: text(),
+    attempts: integer().notNull().default(0),
+    /** Earliest time the worker may (re)start the job (backoff after a failure). */
+    runAfter: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    /** Worker lease: the job is owned by lockedBy until lockedUntil; an expired lease can be taken over. */
+    lockedBy: text(),
+    lockedUntil: timestamp({ withTimezone: true }),
+    cancelRequestedAt: timestamp({ withTimezone: true }),
+    lastError: text(),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("import_jobs_created_idx").on(t.createdAt.desc())],
+  (t) => [
+    index("import_jobs_created_idx").on(t.createdAt.desc()),
+    index("import_jobs_runnable_idx")
+      .on(t.runAfter)
+      .where(sql`${t.kind} = 'provider' AND ${ACTIVE_JOB}`),
+    uniqueIndex("import_jobs_dedupe_uq")
+      .on(t.dedupeKey)
+      .where(sql`${t.dedupeKey} IS NOT NULL AND ${ACTIVE_JOB}`),
+    check(
+      "import_jobs_kind_ck",
+      sql`CASE ${t.kind} WHEN 'csv' THEN ${t.fileName} IS NOT NULL AND ${t.fileChecksum} IS NOT NULL
+          ELSE ${t.provider} IS NOT NULL AND ${t.query} IS NOT NULL END`,
+    ),
+  ],
 );
 
 export const importRows = pgTable(

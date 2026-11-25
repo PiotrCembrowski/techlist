@@ -6,13 +6,20 @@ export const productStatus = pgEnum("product_status", [
   "discontinued",
   "unknown",
 ]);
+/** Guides only. Products and variants use `catalogStatus`. */
 export const publicationStatus = pgEnum("publication_status", ["draft", "published", "archived"]);
-export const verificationStatus = pgEnum("verification_status", [
+/**
+ * Single lifecycle status for products and variants (replaces publication_status +
+ * verification_status, DECISIONS D77): draft → needs_review → verified → published, plus
+ * rejected and archived. Only `published` rows are public.
+ */
+export const catalogStatus = pgEnum("catalog_status", [
   "draft",
   "needs_review",
-  "partially_verified",
   "verified",
+  "published",
   "rejected",
+  "archived",
 ]);
 /** Per-value status. AI-extracted and imported values start as `unverified` (rule 2.1.8). */
 export const specVerificationStatus = pgEnum("spec_verification_status", [
@@ -75,6 +82,35 @@ export const importStatus = pgEnum("import_status", [
   "committed",
   "failed",
   "cancelled",
+  // Provider jobs (run by the worker): queued → running → committed / failed / cancelled.
+  "queued",
+  "running",
+]);
+export const importJobKind = pgEnum("import_job_kind", ["csv", "provider"]);
+export const importJobItemStatus = pgEnum("import_job_item_status", [
+  "pending",
+  "applied",
+  "needs_review",
+  "unchanged",
+  "skipped",
+  "failed",
+]);
+/** Kinds of identifiers that point at one product or variant (DECISIONS D78). */
+export const identifierType = pgEnum("identifier_type", [
+  "gtin",
+  "mpn",
+  "model_number",
+  "provider_product_id",
+]);
+export const providerMappingType = pgEnum("provider_mapping_type", [
+  "category",
+  "feature",
+  "brand",
+]);
+export const imageRightsStatus = pgEnum("image_rights_status", [
+  "needs_review",
+  "approved",
+  "rejected",
 ]);
 export const importRowAction = pgEnum("import_row_action", [
   "create",
@@ -91,6 +127,9 @@ export const reviewItemType = pgEnum("review_item_type", [
   "variant_ambiguity",
   "correction",
   "suspicious_price",
+  // Import system: a provider value disagrees with a stored one; a remote image needs a rights check.
+  "field_conflict",
+  "image_rights",
 ]);
 export const reviewStatus = pgEnum("review_status", ["open", "approved", "rejected"]);
 export const adminRole = pgEnum("admin_role", ["owner", "editor"]);

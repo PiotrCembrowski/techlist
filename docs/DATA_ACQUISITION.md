@@ -71,8 +71,9 @@ with two valid rows, two invalid rows and a likely duplicate.
 
 ## Verification workflow
 
-- **Products** have a verification status (`draft → needs_review → partially_verified / verified`,
-  or `rejected`) set by editors; only verified or partially verified products can be indexed.
+- **Products** have one status (`draft → needs_review → verified → published`, or `rejected` /
+  `archived`, DECISIONS D77) set by editors; only published products are public, and publishing
+  records the verification date.
 - **Values** are `unverified` until a human verifies them: in the specification editor ("I checked
   these against the source"), or by approving a review item. Verified values require a
   verification timestamp (database check).

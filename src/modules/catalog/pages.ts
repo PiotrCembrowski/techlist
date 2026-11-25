@@ -36,7 +36,7 @@ export async function getCategoryTree(db: DbOrTx): Promise<NavCategory[]> {
   }>(sql`
     SELECT c.id, c.parent_id, c.slug, c.name, c.icon,
            (SELECT count(*)::int FROM products p JOIN brands b ON b.id = p.brand_id AND b.is_active
-             WHERE p.category_id = c.id AND p.publication_status = 'published') AS direct
+             WHERE p.category_id = c.id AND p.status = 'published') AS direct
     FROM categories c WHERE c.is_active
     ORDER BY c.sort_order, c.name
     LIMIT 200`);
@@ -81,7 +81,7 @@ export async function listBrandsByProductCount(db: DbOrTx, limit = 48): Promise<
   }>(sql`
     SELECT b.slug, b.name, b.country_of_origin, count(p.id)::int AS n
     FROM brands b
-    LEFT JOIN products p ON p.brand_id = b.id AND p.publication_status = 'published'
+    LEFT JOIN products p ON p.brand_id = b.id AND p.status = 'published'
     WHERE b.is_active
     GROUP BY b.id
     HAVING count(p.id) > 0
@@ -130,7 +130,7 @@ export async function getCategoryPageData(
     db.execute<{ slug: string; name: string; country_of_origin: string | null; n: number }>(sql`
       SELECT b.slug, b.name, b.country_of_origin, count(*)::int AS n
       FROM products p JOIN brands b ON b.id = p.brand_id AND b.is_active
-      WHERE p.publication_status = 'published' AND p.category_id = ANY(${sql.param(scopeIds)}::uuid[])
+      WHERE p.status = 'published' AND p.category_id = ANY(${sql.param(scopeIds)}::uuid[])
       GROUP BY b.id ORDER BY n DESC, b.name LIMIT 50`),
     listGuidesForCategories(
       db,
@@ -146,7 +146,7 @@ export async function getCategoryPageData(
           SELECT tree.root_id, c.id, tree.depth + 1 FROM categories c JOIN tree ON c.parent_id = tree.id WHERE tree.depth < 8
         )
         SELECT tree.root_id AS id, count(p.id)::int AS n FROM tree
-        LEFT JOIN products p ON p.category_id = tree.id AND p.publication_status = 'published'
+        LEFT JOIN products p ON p.category_id = tree.id AND p.status = 'published'
         GROUP BY tree.root_id`)
     : [];
   const countOf = new Map(childCounts.map((r) => [r.id, Number(r.n)]));
@@ -215,17 +215,17 @@ export async function getBrandPageData(
   const [categories, families, latest, discontinued] = await Promise.all([
     db.execute<{ slug: string; name: string; n: number }>(sql`
       SELECT c.slug, c.name, count(*)::int AS n FROM products p JOIN categories c ON c.id = p.category_id
-      WHERE p.brand_id = ${brand.id} AND p.publication_status = 'published'
+      WHERE p.brand_id = ${brand.id} AND p.status = 'published'
       GROUP BY c.id ORDER BY c.sort_order, c.name LIMIT 50`),
     db.execute<{ slug: string; name: string; n: number }>(sql`
       SELECT f.slug, f.name, count(p.id)::int AS n FROM product_families f
-      JOIN products p ON p.family_id = f.id AND p.publication_status = 'published'
+      JOIN products p ON p.family_id = f.id AND p.status = 'published'
       WHERE f.brand_id = ${brand.id} GROUP BY f.id ORDER BY f.name LIMIT 50`),
     db.execute<{ id: string }>(sql`
-      SELECT id FROM products WHERE brand_id = ${brand.id} AND publication_status = 'published' AND product_status <> 'discontinued'
+      SELECT id FROM products WHERE brand_id = ${brand.id} AND status = 'published' AND product_status <> 'discontinued'
       ORDER BY coalesce(release_date, announced_date) DESC NULLS LAST, name LIMIT 12`),
     db.execute<{ id: string }>(sql`
-      SELECT id FROM products WHERE brand_id = ${brand.id} AND publication_status = 'published' AND product_status = 'discontinued'
+      SELECT id FROM products WHERE brand_id = ${brand.id} AND status = 'published' AND product_status = 'discontinued'
       ORDER BY discontinued_date DESC NULLS LAST, name LIMIT 12`),
   ]);
   return {
@@ -259,11 +259,11 @@ export async function getHomeProductIds(db: DbOrTx, limit = 8) {
   const [featured, recent] = await Promise.all([
     db.execute<{ id: string }>(sql`
       SELECT p.id FROM products p JOIN brands b ON b.id = p.brand_id AND b.is_active
-      WHERE p.publication_status = 'published' AND p.is_featured
+      WHERE p.status = 'published' AND p.is_featured
       ORDER BY coalesce(p.release_date, p.announced_date) DESC NULLS LAST, p.name LIMIT ${limit}`),
     db.execute<{ id: string }>(sql`
       SELECT p.id FROM products p JOIN brands b ON b.id = p.brand_id AND b.is_active
-      WHERE p.publication_status = 'published'
+      WHERE p.status = 'published'
       ORDER BY p.created_at DESC, p.name LIMIT ${limit}`),
   ]);
   return { featuredIds: featured.map((r) => r.id), recentIds: recent.map((r) => r.id) };

@@ -18,14 +18,12 @@ import {
 } from "@/modules/catalog-admin/service";
 import { ServiceError, ValidationError } from "@/modules/_shared/errors";
 import {
-  archiveProduct,
   createProduct,
   deleteDraftProduct,
-  publishProduct,
-  unpublishProduct,
+  setProductStatus,
   updateProduct,
-  verifyProduct,
 } from "@/modules/products/service";
+import { isCatalogStatus, STATUS_LABELS, type CatalogStatus } from "@/modules/products/status";
 import {
   getEffectiveDefinitions,
   getProductSpecifications,
@@ -73,33 +71,19 @@ export const updateProductAction = adminAction(async ({ ctx }, fd) => {
   return "Product saved";
 });
 
+/** One action for every status change; `op` is the target status or `delete`. */
 export const productStatusAction = adminAction(async ({ ctx }, fd) => {
   const id = req(fd, "id");
-  switch (str(fd, "op")) {
-    case "publish":
-      await publishProduct(ctx, id);
-      return "Published";
-    case "unpublish":
-      await unpublishProduct(ctx, id);
-      return "Moved back to draft";
-    case "archive":
-      await archiveProduct(ctx, id);
-      return "Archived (hidden from the public site)";
-    case "delete":
-      await deleteDraftProduct(ctx, id, {
-        confirm: bool(fd, "confirm") || str(fd, "confirm") === "yes",
-      });
-      redirect("/admin/products?deleted=1");
-    default:
-      throw new ValidationError("Unknown operation");
+  const op = str(fd, "op");
+  if (op === "delete") {
+    await deleteDraftProduct(ctx, id, {
+      confirm: bool(fd, "confirm") || str(fd, "confirm") === "yes",
+    });
+    redirect("/admin/products?deleted=1");
   }
-});
-
-export const verifyProductAction = adminAction(async ({ ctx }, fd) => {
-  const status = req(fd, "verificationStatus") as
-    "draft" | "needs_review" | "partially_verified" | "verified" | "rejected";
-  await verifyProduct(ctx, req(fd, "id"), status);
-  return "Verification status saved";
+  if (!isCatalogStatus(op)) throw new ValidationError("Unknown operation");
+  const p = await setProductStatus(ctx, id, op);
+  return `Status: ${STATUS_LABELS[p.status]}`;
 });
 
 function variantFields(fd: FormData) {
@@ -114,7 +98,7 @@ function variantFields(fd: FormData) {
     configurationLabel: str(fd, "configurationLabel"),
     barcodeGtin: str(fd, "barcodeGtin"),
     sku: str(fd, "sku"),
-    isActive: !bool(fd, "inactive"),
+    status: isCatalogStatus(str(fd, "status")) ? (str(fd, "status") as CatalogStatus) : undefined,
   };
 }
 

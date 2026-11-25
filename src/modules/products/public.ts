@@ -112,13 +112,13 @@ export async function loadProductPage(
 ): Promise<PageLookup<ProductPageData>> {
   const [row] = await db.execute<{ id: string; brand_slug: string; brand_name: string }>(sql`
     SELECT p.id, b.slug AS brand_slug, b.name AS brand_name FROM products p JOIN brands b ON b.id = p.brand_id
-    WHERE p.slug = ${productSlug} AND p.publication_status = 'published' AND b.is_active`);
+    WHERE p.slug = ${productSlug} AND p.status = 'published' AND b.is_active`);
   if (!row) {
     const to = await resolveSlugRedirect(db, "product", productSlug);
     if (!to) return { kind: "not_found" };
     const [target] = await db.execute<{ brand_slug: string }>(sql`
       SELECT b.slug AS brand_slug FROM products p JOIN brands b ON b.id = p.brand_id
-      WHERE p.slug = ${to} AND p.publication_status = 'published' AND b.is_active`);
+      WHERE p.slug = ${to} AND p.status = 'published' AND b.is_active`);
     return target
       ? { kind: "redirect", to: withVariant(productHref(target.brand_slug, to), variantCode) }
       : { kind: "not_found" };
@@ -132,7 +132,7 @@ export async function loadProductPage(
 
   const [product] = await db.select().from(products).where(eq(products.id, row.id));
   if (!product) return { kind: "not_found" };
-  const variants = (await listVariants(db, product.id)).filter((v) => v.isActive);
+  const variants = (await listVariants(db, product.id)).filter((v) => v.status === "published");
   const selectedVariant =
     (variantCode && variants.find((v) => v.variantCode === variantCode)) || null;
 
@@ -169,7 +169,7 @@ export async function loadProductPage(
       JOIN products p ON p.id = CASE WHEN r.source_product_id = ${product.id} THEN r.target_product_id ELSE r.source_product_id END
       JOIN brands b ON b.id = p.brand_id AND b.is_active
       WHERE (r.source_product_id = ${product.id} OR r.target_product_id = ${product.id})
-        AND p.publication_status = 'published'
+        AND p.status = 'published'
       ORDER BY p.release_date DESC NULLS LAST, p.name
       LIMIT 48`),
     // Only links whose source permits display (SPEC §5.2).
@@ -258,10 +258,9 @@ export async function loadProductPage(
       images,
       indexability: getIndexability({
         kind: "product",
-        publicationStatus: product.publicationStatus,
+        status: product.status,
         isDemo: product.isDemo,
         brandActive: true, // the lookup above only finds products of active brands
-        verificationStatus: product.verificationStatus,
         requiredTotal: required.length,
         requiredPresent: productLevelPresent,
       }),

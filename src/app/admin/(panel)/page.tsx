@@ -4,6 +4,7 @@ import { getEnv } from "@/config/env";
 import { requireAdmin } from "@/lib/auth/guard";
 import { formatRelative } from "@/lib/format";
 import { getDashboardStats, listAuditLogs, listRecentImports } from "@/modules/admin/queries";
+import { CATALOG_STATUSES, STATUS_LABELS } from "@/modules/products/status";
 
 export const metadata = { title: "Dashboard" };
 
@@ -48,20 +49,12 @@ export default async function Dashboard({
           Products
         </h2>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-6">
-          {["published", "draft", "archived"].map((s) => (
+          {CATALOG_STATUSES.map((s) => (
             <Stat
               key={s}
-              label={s}
-              value={stats.byPublication[s] ?? 0}
-              href={`/admin/products?publication=${s}`}
-            />
-          ))}
-          {["verified", "partially_verified", "needs_review"].map((s) => (
-            <Stat
-              key={s}
-              label={s.replace("_", " ")}
-              value={stats.byVerification[s] ?? 0}
-              href={`/admin/products?verification=${s}`}
+              label={STATUS_LABELS[s].toLowerCase()}
+              value={stats.byStatus[s] ?? 0}
+              href={`/admin/products?status=${s}`}
             />
           ))}
         </div>

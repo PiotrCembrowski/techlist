@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { products, productVariants } from "@/db/schema";
+import { auditLogs, products, productVariants } from "@/db/schema";
 import { closeDb } from "@/lib/db";
 import { ConflictError, InvalidStateError, ValidationError } from "@/modules/_shared/errors";
 import {
@@ -10,6 +10,10 @@ import {
   getPublishedProductBySlug,
   listProducts,
   publishProduct,
+  rejectProduct,
+  restoreProduct,
+  submitProductForReview,
+  unpublishProduct,
   updateProduct,
   verifyProduct,
 } from "@/modules/products/service";
@@ -30,8 +34,8 @@ describe("products", () => {
     const p = await makeProduct({ name: "Aera 7 Pro" });
     expect(p).toMatchObject({
       slug: "aera-7-pro",
-      publicationStatus: "draft",
-      verificationStatus: "draft",
+      status: "draft",
+      lastVerifiedAt: null,
       isDemo: false,
     });
     expect(await getPublishedProductBySlug(db(), "aera-7-pro")).toBeNull();
@@ -119,29 +123,59 @@ describe("products", () => {
     expect(await resolveSlugRedirect(db(), "product", "vanta-14")).toBe("vanta-14-2026");
   });
 
-  it("enforces publication state transitions", async () => {
+  it("enforces the single status's transitions", async () => {
     const p = await makeProduct();
     await publishProduct(ctx(), p.id);
-    await expect(publishProduct(ctx(), p.id)).rejects.toThrow(InvalidStateError);
+    await expect(publishProduct(ctx(), p.id)).rejects.toThrow(/already published/);
+    await expect(rejectProduct(ctx(), p.id)).rejects.toThrow(InvalidStateError);
     await expect(deleteDraftProduct(ctx(), p.id, { confirm: true })).rejects.toThrow(/archive/);
     const rejected = await makeProduct();
-    await verifyProduct(ctx(), rejected.id, "rejected");
-    await expect(publishProduct(ctx(), rejected.id)).rejects.toThrow(/Rejected/);
+    await rejectProduct(ctx(), rejected.id);
+    await expect(publishProduct(ctx(), rejected.id)).rejects.toThrow(/rejected product cannot/);
+    await expect(restoreProduct(ctx(), rejected.id)).resolves.toMatchObject({ status: "draft" });
+    const archived = await makeProduct();
+    await archiveProduct(ctx(), archived.id);
+    await expect(publishProduct(ctx(), archived.id)).rejects.toThrow(InvalidStateError);
+    await expect(restoreProduct(ctx(), archived.id)).resolves.toMatchObject({ status: "draft" });
   });
 
-  it("hard-deletes drafts only with confirmation", async () => {
+  it("hard-deletes drafts and rejected products only with confirmation", async () => {
     const p = await makeProduct();
     await expect(deleteDraftProduct(ctx(), p.id, { confirm: false })).rejects.toThrow(
       /confirmation/,
     );
     await deleteDraftProduct(ctx(), p.id, { confirm: true });
     expect(await db().select().from(products).where(eq(products.id, p.id))).toHaveLength(0);
+    const r = await makeProduct();
+    await rejectProduct(ctx(), r.id);
+    await deleteDraftProduct(ctx(), r.id, { confirm: true });
+    const v = await makeProduct();
+    await verifyProduct(ctx(), v.id);
+    await expect(deleteDraftProduct(ctx(), v.id, { confirm: true })).rejects.toThrow(/archive/);
   });
 
-  it("stamps last_verified_at only for verified states", async () => {
+  it("stamps last_verified_at on verify and verify & publish, keeps it on unpublish", async () => {
     const p = await makeProduct();
-    expect((await verifyProduct(ctx(), p.id, "verified")).lastVerifiedAt).toBeInstanceOf(Date);
-    expect((await verifyProduct(ctx(), p.id, "needs_review")).lastVerifiedAt).toBeNull();
+    await submitProductForReview(ctx(), p.id);
+    const verified = await verifyProduct(ctx(), p.id);
+    expect(verified).toMatchObject({ status: "verified" });
+    expect(verified.lastVerifiedAt).toBeInstanceOf(Date);
+    await publishProduct(ctx(), p.id);
+    const unpublished = await unpublishProduct(ctx(), p.id);
+    expect(unpublished).toMatchObject({
+      status: "verified",
+      lastVerifiedAt: verified.lastVerifiedAt,
+    });
+    expect((await submitProductForReview(ctx(), p.id)).lastVerifiedAt).toBeNull();
+
+    const direct = await makeProduct();
+    const published = await publishProduct(ctx(), direct.id);
+    expect(published.lastVerifiedAt).toBeInstanceOf(Date);
+    const audit = await db()
+      .select({ action: auditLogs.action })
+      .from(auditLogs)
+      .where(eq(auditLogs.entityId, direct.id));
+    expect(audit.map((a) => a.action)).toContain("verify_and_publish");
   });
 
   it("paginates and clamps page size to 48", async () => {

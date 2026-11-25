@@ -32,6 +32,9 @@ test("admin pages pass axe (WCAG 2.1 A/AA)", async ({ page }) => {
   // Product edit page, reached through the list.
   await page.goto("/admin/products");
   await page.getByRole("link", { name: "Aera 7 Pro", exact: true }).click();
+  // Client-side navigation: wait for the new page (and its title) before auditing.
+  await expect(page).toHaveURL(/\/admin\/products\/[0-9a-f-]{36}$/);
+  await expect(page).toHaveTitle(/Edit product/);
   const r = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
     .analyze();

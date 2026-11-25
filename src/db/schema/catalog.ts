@@ -389,6 +389,10 @@ export const productSourceRecords = pgTable(
     attributionText: text(),
     /** The provider's own quality/verification marker for the record (e.g. Icecat "ICECAT"/"SUPPLIER"). */
     providerQuality: text(),
+    /** The provider record as received (normalised form; size-capped). Nothing is discarded. */
+    rawRecord: jsonb().$type<Record<string, unknown>>(),
+    /** Provider features with no mapping yet (for the unmapped-feature report). */
+    unmappedFeatures: jsonb().$type<unknown[]>(),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [

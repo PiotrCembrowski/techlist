@@ -240,6 +240,26 @@ export async function approveReviewItem(
             confidence: (p.confidence as number | null) ?? null,
           },
         );
+        if (
+          typeof p.provider === "string" &&
+          typeof p.proposedSourceId === "string" &&
+          !input.value
+        ) {
+          // The provider's value was accepted: it becomes the field's current source.
+          const { recordProvenance, specField } = await import("@/modules/import-core/provenance");
+          await recordProvenance(tx, {
+            productId: p.productId as string,
+            variantId: (p.variantId as string | null) ?? null,
+            field: specField(p.key as string),
+            value: p.proposed,
+            rawValue: p.rawValue ?? p.proposed,
+            retrievedAt: new Date(),
+            sourceId: p.proposedSourceId,
+            provider: p.provider,
+            providerProductId: String(p.providerProductId ?? ""),
+            confidence: Number(p.confidence ?? 0),
+          });
+        }
         return finish(tx, ctx, item, "approved", note);
       case "unverified_spec":
         await applySpecValue(tx, ctx, item.entityId!, null, input.value);
@@ -279,8 +299,16 @@ export async function approveReviewItem(
         return finish(tx, ctx, item, "approved", note);
       }
       case "duplicate_candidate":
-      case "variant_ambiguity":
+      case "variant_ambiguity": {
+        if (p.kind === "provider") {
+          if (!input.choice) throw new ValidationError("Choose what this record is");
+          const { resolveProviderReview } = await import("@/modules/import-core/apply");
+          const result = await resolveProviderReview(sctx, item, input.choice);
+          if (result.status === "blocked") throw new InvalidStateError(result.notes.join("; "));
+          return finish(tx, ctx, item, "approved", note);
+        }
         return approveImportRow(tx, ctx, item, input, note);
+      }
       case "field_conflict":
         await applyFieldConflict(sctx, p, input.value ?? undefined);
         return finish(tx, ctx, item, "approved", note);

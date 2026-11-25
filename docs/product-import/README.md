@@ -63,6 +63,15 @@ All optional (`.env.example`); the app builds and runs with none of them.
 
 Credentials are read on the server only and never stored in the database or logged.
 
+## First steps
+
+1. `pnpm db:migrate`
+2. `pnpm catalog:bootstrap --dry-run`, then `pnpm catalog:bootstrap`: creates the six target
+   categories and their specification definitions (never changes existing ones).
+3. Provider adapters and the Import Center follow in Stages 4–9.
+
+How records are matched, merged and protected: [identity-and-provenance.md](identity-and-provenance.md).
+
 ## Testing
 
 Ordinary test runs make zero real API calls: the HTTP client takes an injected `fetch`, and the
@@ -71,10 +80,10 @@ run only with `PROVIDER_LIVE_TESTS=true`.
 
 ## Stage status
 
-| Stage | Content                                                                                  | Status                                                                             |
-| ----- | ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| 1     | Inspection report                                                                        | Done (approved)                                                                    |
-| 2     | Single status; schema; adapter contract; HTTP client; quota ledger; cache; settings; env | Done                                                                               |
-| 3     | Normalisation (GTIN-14, identity hierarchy, matching, provenance)                        | Next                                                                               |
-| 4–7   | Icecat, Wikidata, UPCitemdb, eBay adapters                                               | Blocked: provider documentation sites are not reachable from the build environment |
-| 8–11  | Admin Import Center, jobs/worker, tests and docs, verification                           | Planned                                                                            |
+| Stage | Content                                                                                      | Status                                                                             |
+| ----- | -------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| 1     | Inspection report                                                                            | Done (approved)                                                                    |
+| 2     | Single status; schema; adapter contract; HTTP client; quota ledger; cache; settings; env     | Done                                                                               |
+| 3     | Normalisation, GTIN-14, category definitions + bootstrap, matching, provenance, safe upserts | Done ([details](identity-and-provenance.md))                                       |
+| 4–7   | Icecat, Wikidata, UPCitemdb, eBay adapters                                                   | Blocked: provider documentation sites are not reachable from the build environment |
+| 8–11  | Admin Import Center, jobs/worker, tests and docs, verification                               | Planned                                                                            |

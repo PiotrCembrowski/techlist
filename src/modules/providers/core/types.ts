@@ -87,6 +87,13 @@ export interface ProviderRecord {
   gtins: string[];
   categoryExternalId: string | null;
   categoryName: string | null;
+  /** Product family / series as the provider names it. */
+  family?: string | null;
+  /**
+   * Purchasable-configuration attributes the provider states explicitly (never parsed out of a
+   * product name). Storage and memory come from mapped specifications instead.
+   */
+  variant?: { colour?: string | null; region?: string | null; revision?: string | null };
   releaseDate: string | null;
   description: string | null;
   features: ProviderFeature[];

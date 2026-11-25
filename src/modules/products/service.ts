@@ -18,6 +18,8 @@ import {
   ValidationError,
 } from "@/modules/_shared/errors";
 import { onlyProvided } from "@/modules/_shared/patch";
+import { changedFields } from "@/modules/_shared/patch";
+import { PRODUCT_FIELDS, recordManualEdits } from "@/modules/import-core/provenance";
 import { recordSlugChange } from "@/modules/slugs/service";
 import {
   checkProductDates,
@@ -92,10 +94,16 @@ export async function createProduct(
   }
 }
 
+/**
+ * Updates a product. By default the changed fields are recorded as manual provenance (an
+ * admin's hand edit, which provider imports never overwrite); the provider import passes
+ * `provenance: "none"` and records its own.
+ */
 export async function updateProduct(
   ctx: ServiceContext,
   id: string,
   patch: ProductUpdate,
+  opts: { provenance?: "manual" | "none" } = {},
 ): Promise<Product> {
   const data = onlyProvided(parseOrThrow(productUpdateSchema, patch, "Invalid product"), patch);
   try {
@@ -111,6 +119,14 @@ export async function updateProduct(
       const [row] = await tx.update(products).set(data).where(eq(products.id, id)).returning();
       if (data.slug && data.slug !== before.slug)
         await recordSlugChange(tx, "product", before.slug, data.slug);
+      if (opts.provenance !== "none")
+        await recordManualEdits(
+          tx,
+          { productId: id, variantId: null },
+          PRODUCT_FIELDS,
+          changedFields(before, data),
+          ctx.actorId,
+        );
       await recordAudit(tx, {
         actorId: ctx.actorId,
         entityType: "product",

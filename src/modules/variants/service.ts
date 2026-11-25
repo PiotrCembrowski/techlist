@@ -10,13 +10,14 @@ import {
   rethrowDbError,
   ValidationError,
 } from "@/modules/_shared/errors";
-import { onlyProvided } from "@/modules/_shared/patch";
+import { changedFields, onlyProvided } from "@/modules/_shared/patch";
 import {
   variantBaseSchema,
   variantUpdateSchema,
   type VariantInput,
   type VariantUpdate,
 } from "./schema";
+import { recordManualEdits, VARIANT_FIELDS } from "@/modules/import-core/provenance";
 
 export type ProductVariant = typeof productVariants.$inferSelect;
 
@@ -84,10 +85,12 @@ export async function createProductVariant(
   }
 }
 
+/** Updates a variant; changed fields are recorded as manual provenance unless `provenance: "none"`. */
 export async function updateProductVariant(
   ctx: ServiceContext,
   id: string,
   patch: VariantUpdate,
+  opts: { provenance?: "manual" | "none" } = {},
 ): Promise<ProductVariant> {
   const data = onlyProvided(parseOrThrow(variantUpdateSchema, patch, "Invalid variant"), patch);
   try {
@@ -110,6 +113,14 @@ export async function updateProductVariant(
         .set(data)
         .where(eq(productVariants.id, id))
         .returning();
+      if (opts.provenance !== "none")
+        await recordManualEdits(
+          tx,
+          { productId: before.productId, variantId: id },
+          VARIANT_FIELDS,
+          changedFields(before, data),
+          ctx.actorId,
+        );
       await recordAudit(tx, {
         actorId: ctx.actorId,
         entityType: "product_variant",

@@ -94,9 +94,10 @@ export const fieldProvenance = pgTable(
       .references(() => products.id, { onDelete: "cascade" }),
     variantId: uuid().references(() => productVariants.id, { onDelete: "cascade" }),
     field: text().notNull(),
-    sourceId: uuid()
-      .notNull()
-      .references(() => sources.id, { onDelete: "restrict" }),
+    /** NULL only for a manual value (`isManual`): an admin edited or entered it by hand. */
+    sourceId: uuid().references(() => sources.id, { onDelete: "restrict" }),
+    isManual: boolean().notNull().default(false),
+    adminUserId: uuid().references(() => adminUsers.id, { onDelete: "set null" }),
     provider: text(),
     providerProductId: text(),
     /** The source's value before normalisation (JSON: string, number, object). */
@@ -114,6 +115,10 @@ export const fieldProvenance = pgTable(
       .on(t.productId, t.variantId, t.field, t.sourceId)
       .nullsNotDistinct(),
     index("field_provenance_product_idx").on(t.productId, t.field),
+    check(
+      "field_provenance_origin_ck",
+      sql`(${t.sourceId} IS NOT NULL AND NOT ${t.isManual}) OR (${t.sourceId} IS NULL AND ${t.isManual})`,
+    ),
     check("field_provenance_field_ck", sql`${t.field} ~ '^[a-z][a-z0-9_]*(:[a-z0-9_.-]+)?$'`),
     check("field_provenance_hash_ck", sql`${t.valueHash} ~ '^[0-9a-f]{64}$'`),
     check(

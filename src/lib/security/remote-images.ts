@@ -3,8 +3,9 @@
  * shown only when its host is listed here AND an editor approved its rights (image_rights review).
  * The CSP's img-src is built from the same list.
  *
- * Empty until each provider's documented image host is verified (Icecat, Wikimedia Commons:
- * Stages 4–5). Exact host names only: no wildcards.
+ * Empty until each provider's documented image host is verified. Open Icecat is not listed on
+ * purpose: Icecat asks partners to host its images themselves rather than link to them (D81).
+ * Wikimedia Commons: Stage 5. Exact host names only: no wildcards.
  */
 export const REMOTE_IMAGE_HOSTS: readonly string[] = [];
 

@@ -1,7 +1,7 @@
 # Free-data product import
 
 Imports product data from sources that are free to use, with every value traceable to its source
-and nothing published without an editor's review. Decisions: `docs/DECISIONS.md` D77–D80.
+and nothing published without an editor's review. Decisions: `docs/DECISIONS.md` D77–D81.
 
 | Page                                                     | What it covers                                                         |
 | -------------------------------------------------------- | ---------------------------------------------------------------------- |
@@ -46,7 +46,7 @@ All optional (`.env.example`); the app builds and runs with none of them.
 
 | Variable                                                                      | Purpose                                                        |
 | ----------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| `ICECAT_USERNAME`, `ICECAT_API_TOKEN`, `ICECAT_CONTENT_TOKEN`                 | Open Icecat account (tokens only if the account has them)      |
+| `ICECAT_USERNAME`, `ICECAT_API_TOKEN`                                         | Open Icecat account: user name, or API token (recommended)     |
 | `ICECAT_DEFAULT_LANG`                                                         | Content language, default `en`                                 |
 | `WIKIDATA_USER_AGENT`                                                         | Required by Wikimedia: client name/version plus a URL or email |
 | `UPCITEMDB_ENABLED`, `UPCITEMDB_DAILY_BUDGET`                                 | Off by default; our own cap (default 90, max 100)              |
@@ -79,9 +79,9 @@ worker process.
 | 1     | Inspection report                                                                        | Done (approved)                                                        |
 | 2     | Single status; schema; adapter contract; HTTP client; quota ledger; cache; settings; env | Done                                                                   |
 | 3     | Normalisation, GTIN-14, category definitions + bootstrap, matching, provenance, upserts  | Done                                                                   |
-| 4     | Open Icecat adapter + feature mappings                                                   | **Not built**: documentation not reachable from the build environment  |
-| 5     | Wikidata adapter + Commons image licences                                                | **Not built**: same reason                                             |
-| 6     | UPCitemdb adapter                                                                        | **Not built**: same reason                                             |
+| 4     | Open Icecat adapter + feature mappings                                                   | Done (no images; mappings made in the admin — providers.md)            |
+| 5     | Wikidata adapter + Commons image licences                                                | **Not built** yet                                                      |
+| 6     | UPCitemdb adapter                                                                        | **Not built** yet                                                      |
 | 7     | eBay adapter                                                                             | **Not built**: needs the licence report and the owner's approval first |
 | 8     | Import Center admin UI                                                                   | Done                                                                   |
 | 9     | Jobs, worker, schedule                                                                   | Done                                                                   |

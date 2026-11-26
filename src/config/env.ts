@@ -61,10 +61,12 @@ export const envSchema = z
     //    with none of them; each provider runs only when configured here AND enabled in the admin.
     /** Open Icecat account name (free Open Icecat only; never Full Icecat). */
     ICECAT_USERNAME: optionalSecret,
-    /** Open Icecat API token, if the account has one (sent only from the server). */
+    /**
+     * Open Icecat API token (MyIcecat → Access Tokens), sent only from the server as a header.
+     * Recommended by Icecat; with it the user name is not needed. The content token is not used:
+     * Icecat appends it to file links, and the import does not download files.
+     */
     ICECAT_API_TOKEN: optionalSecret,
-    /** Open Icecat content token, if the account has one (sent only from the server). */
-    ICECAT_CONTENT_TOKEN: optionalSecret,
     /** Language of Icecat content, e.g. `en`. */
     ICECAT_DEFAULT_LANG: z
       .string()

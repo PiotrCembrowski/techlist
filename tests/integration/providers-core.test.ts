@@ -188,7 +188,7 @@ describe("provider settings", () => {
 
   it("cannot enable a provider without an adapter or without its configuration", async () => {
     const env = parseEnv(baseEnv);
-    await expect(setProviderEnabled(ctx(), "icecat", true, env)).rejects.toThrow(/no adapter/);
+    await expect(setProviderEnabled(ctx(), "upcitemdb", true, env)).rejects.toThrow(/no adapter/);
     registerAdapter(fake);
     await expect(setProviderEnabled(ctx(), "wikidata", true, env)).rejects.toThrow(
       /WIKIDATA_USER_AGENT/,

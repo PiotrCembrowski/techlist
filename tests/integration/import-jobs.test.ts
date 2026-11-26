@@ -122,8 +122,15 @@ describe("queueing provider jobs", () => {
       }),
     ).rejects.toBeInstanceOf(ConflictError);
     await expect(
-      enqueueProviderJob(ctx(), env, { provider: "icecat", query: { mode: "ids", values: ["1"] } }),
+      enqueueProviderJob(ctx(), env, {
+        provider: "upcitemdb",
+        query: { mode: "ids", values: ["1"] },
+      }),
     ).rejects.toThrow(/no adapter/);
+    // Open Icecat has an adapter, but this environment has no account configured.
+    await expect(
+      enqueueProviderJob(ctx(), env, { provider: "icecat", query: { mode: "ids", values: ["1"] } }),
+    ).rejects.toThrow(/not configured \(ICECAT_USERNAME\)/);
   });
 });
 

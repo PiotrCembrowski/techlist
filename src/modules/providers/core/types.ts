@@ -140,6 +140,8 @@ export interface ProviderAdapter {
   readonly allowedHosts: readonly string[];
   /** Minimum spacing between requests in this process, in milliseconds. */
   readonly minIntervalMs: number;
+  /** Query parameters that identify the account (redacted from logs and cache keys). */
+  readonly secretParams?: readonly string[];
   /** HTTP requests one call costs (shown before a search is run); default 1 each. */
   readonly requestCost?: { lookupByGtin?: number; search?: number; fetchById?: number };
   /** How long raw responses are cached (seconds); also lets an import reuse a preview's calls. */

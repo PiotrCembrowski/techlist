@@ -1,7 +1,7 @@
 # Licensing and attribution
 
-Rules the import system enforces (DECISIONS D78–D80). Provider-specific terms are still to be
-verified (see [providers.md](providers.md)).
+Rules the import system enforces (DECISIONS D78–D81). Provider-specific terms: Open Icecat
+below; the others are still to be verified (see [providers.md](providers.md)).
 
 ## Data
 
@@ -33,3 +33,26 @@ verified (see [providers.md](providers.md)).
   database, sent to the browser, written to logs (logs and cache keys are redacted), or shown in
   the admin.
 - Raw provider responses are stored for re-processing and are visible only to admins.
+
+## Open Icecat — before ticking “Usage is permitted”
+
+Open Icecat content is free under the **Open Content License v1.4** (2026-02-11,
+<https://iceclog.com/open-content-license/>) and the **Open Icecat Fair Use Policy**
+(2026-05-02, <https://iceclog.com/open-icecat-fair-use-policy/>). Summary of what they ask
+(read the originals; this is not legal advice):
+
+| Condition                                                                                                                                                                    | Where it stands                                                                                                                                             |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A free Open Icecat account (OCL §7)                                                                                                                                          | Your action: register; set `ICECAT_API_TOKEN` or `ICECAT_USERNAME`. The public demo account is refused                                                      |
+| Notice on each copy: “Database Right data-sheet [Year] Icecat. All rights reserved.” plus the “as is” no-warranty disclaimer (OCL §1, Fair Use)                              | The source's attribution text carries both; it is shown wherever sources are listed. Check that this placement satisfies “conspicuously” for you            |
+| Modified content must carry notices of what changed and when (OCL §2a)                                                                                                       | **Open:** imports convert units and normalise text; raw values and retrieval dates are stored (field provenance), but product pages do not list the changes |
+| Works containing the content are licensed free of charge to third parties under the OCL (OCL §2b); no fee for the content or for access to it (OCL §1)                       | **Your decision:** compatible with a free public site; incompatible with charging for access to the catalogue                                               |
+| No machine-learning training, model generation or synthetic content with the data (OCL §10); robots.txt should exclude crawlers that copy content for AI training (Fair Use) | **Open:** `src/app/robots.ts` does not block AI-training crawlers yet                                                                                       |
+| Use the most recent content (OCL §4)                                                                                                                                         | Re-sync interval on the Providers tab; changed payloads are re-imported (unchanged ones only update `last_seen_at`)                                         |
+| At most 1 million data sheets a month (Fair Use)                                                                                                                             | Enforced: 30,000 requests per UTC day in the quota ledger                                                                                                   |
+| Tell merchant and manufacturer contacts about Open Icecat (OCL §8, Fair Use)                                                                                                 | Your action                                                                                                                                                 |
+
+Images: Icecat's JSON manual says to download images and host them yourself and not to link to
+Icecat file links. The import does not re-host images, so **no Icecat images are imported** and
+no Icecat image host is on the allow-list. Adding them needs the re-hosting work described under
+Images above.

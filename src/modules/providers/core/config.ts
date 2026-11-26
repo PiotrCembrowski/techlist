@@ -10,7 +10,8 @@ import type { ProviderAdapter, ProviderKey } from "./types";
 export function missingProviderConfig(provider: ProviderKey, env: Env): string[] {
   switch (provider) {
     case "icecat":
-      return env.ICECAT_USERNAME ? [] : ["ICECAT_USERNAME"];
+      // An API token identifies the account on its own; otherwise the user name is needed.
+      return env.ICECAT_USERNAME || env.ICECAT_API_TOKEN ? [] : ["ICECAT_USERNAME"];
     case "wikidata":
       return env.WIKIDATA_USER_AGENT ? [] : ["WIKIDATA_USER_AGENT"];
     case "upcitemdb":
@@ -51,6 +52,7 @@ export function httpClientFor(
       ...(dailyCap ? [{ bucket: "daily_cap", limit: dailyCap, windowSeconds: 86_400 }] : []),
     ],
     minIntervalMs: adapter.minIntervalMs,
+    secretParams: adapter.secretParams,
     userAgent: providerUserAgent(env),
     ...rest,
   });

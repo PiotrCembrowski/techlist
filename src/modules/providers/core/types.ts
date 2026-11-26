@@ -10,8 +10,13 @@ import type { ProviderHttpClient } from "./http";
  * reviewed changes.
  */
 
+/** The free providers of the import brief. */
 export const PROVIDER_KEYS = ["icecat", "wikidata", "upcitemdb", "ebay"] as const;
-export type ProviderKey = (typeof PROVIDER_KEYS)[number];
+/**
+ * `fixture` is an offline adapter with labelled synthetic records, available only in demo mode
+ * with FIXTURE_PROVIDER=true (tests and trying out the Import Center). It never calls a network.
+ */
+export type ProviderKey = (typeof PROVIDER_KEYS)[number] | "fixture";
 
 export interface ProviderCapabilities {
   /** Look up products by GTIN (EAN/UPC). */
@@ -135,6 +140,12 @@ export interface ProviderAdapter {
   readonly allowedHosts: readonly string[];
   /** Minimum spacing between requests in this process, in milliseconds. */
   readonly minIntervalMs: number;
+  /** HTTP requests one call costs (shown before a search is run); default 1 each. */
+  readonly requestCost?: { lookupByGtin?: number; search?: number; fetchById?: number };
+  /** How long raw responses are cached (seconds); also lets an import reuse a preview's calls. */
+  readonly cacheTtlSeconds?: number;
+  /** Confidence (0–1) of a record from this provider, e.g. higher for editor-checked records. */
+  recordConfidence?(record: ProviderRecord): number;
   /** Which env variables are missing for this adapter to run (empty = configured). */
   missingConfig(env: Env): string[];
   healthCheck(ctx: ProviderContext): Promise<ProviderHealth>;

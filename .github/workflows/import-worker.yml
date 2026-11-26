@@ -1,0 +1,40 @@
+# Runs provider import jobs on a schedule for hosts without an always-on process (e.g. Vercel).
+# Free for public repositories; private repositories use the account's included Actions minutes.
+# OFF until you opt in: set the repository variable IMPORT_WORKER_ENABLED=true and the secrets
+# below (Settings → Secrets and variables → Actions). See docs/product-import/worker.md.
+name: Import worker
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: import-worker
+  cancel-in-progress: false
+
+jobs:
+  drain:
+    if: vars.IMPORT_WORKER_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
+      SITE_URL: ${{ vars.SITE_URL }}
+      ICECAT_USERNAME: ${{ secrets.ICECAT_USERNAME }}
+      ICECAT_API_TOKEN: ${{ secrets.ICECAT_API_TOKEN }}
+      ICECAT_CONTENT_TOKEN: ${{ secrets.ICECAT_CONTENT_TOKEN }}
+      WIKIDATA_USER_AGENT: ${{ vars.WIKIDATA_USER_AGENT }}
+      UPCITEMDB_ENABLED: ${{ vars.UPCITEMDB_ENABLED }}
+      UPCITEMDB_DAILY_BUDGET: ${{ vars.UPCITEMDB_DAILY_BUDGET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Process due import jobs (8-minute budget)
+        run: pnpm worker --drain --max-minutes 8 --enqueue-sync

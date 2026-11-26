@@ -38,6 +38,11 @@ export interface CategoryConfig {
   sortOrder: number;
   groups: { key: string; name: string; order: number }[];
   definitions: DefinitionConfig[];
+  /**
+   * Brands the coverage report checks for (names only, to show where free data falls short).
+   * Edit freely; it does not create anything.
+   */
+  majorBrands: string[];
 }
 
 const higher = "higher_is_better" as const;
@@ -50,6 +55,18 @@ export const TARGET_CATEGORIES: CategoryConfig[] = [
     description: "Phones with structured display, processor, camera and battery specifications.",
     icon: "smartphone",
     sortOrder: 10,
+    majorBrands: [
+      "Apple",
+      "Samsung",
+      "Google",
+      "Xiaomi",
+      "OnePlus",
+      "Motorola",
+      "Sony",
+      "Nothing",
+      "Oppo",
+      "Honor",
+    ],
     groups: [
       { key: "display", name: "Display", order: 10 },
       { key: "performance", name: "Performance", order: 20 },
@@ -198,6 +215,18 @@ export const TARGET_CATEGORIES: CategoryConfig[] = [
     description: "Portable computers, from ultraportables to workstations.",
     icon: "laptop",
     sortOrder: 20,
+    majorBrands: [
+      "Apple",
+      "Lenovo",
+      "HP",
+      "Dell",
+      "ASUS",
+      "Acer",
+      "Microsoft",
+      "MSI",
+      "Razer",
+      "Framework",
+    ],
     groups: [
       { key: "performance", name: "Performance", order: 10 },
       { key: "display", name: "Display", order: 20 },
@@ -313,6 +342,7 @@ export const TARGET_CATEGORIES: CategoryConfig[] = [
     description: "Desktop and mobile CPUs.",
     icon: "cpu",
     sortOrder: 30,
+    majorBrands: ["AMD", "Intel"],
     groups: [
       { key: "cores", name: "Cores and clocks", order: 10 },
       { key: "platform", name: "Platform and power", order: 20 },
@@ -407,6 +437,19 @@ export const TARGET_CATEGORIES: CategoryConfig[] = [
     description: "Desktop graphics cards.",
     icon: "microchip",
     sortOrder: 40,
+    majorBrands: [
+      "ASUS",
+      "MSI",
+      "Gigabyte",
+      "Zotac",
+      "Sapphire",
+      "PowerColor",
+      "XFX",
+      "PNY",
+      "NVIDIA",
+      "AMD",
+      "Intel",
+    ],
     groups: [
       { key: "chip", name: "Chip and memory", order: 10 },
       { key: "board", name: "Board", order: 20 },
@@ -514,6 +557,18 @@ export const TARGET_CATEGORIES: CategoryConfig[] = [
     description: "Desktop displays.",
     icon: "monitor",
     sortOrder: 50,
+    majorBrands: [
+      "Dell",
+      "LG",
+      "Samsung",
+      "ASUS",
+      "AOC",
+      "BenQ",
+      "Acer",
+      "MSI",
+      "Philips",
+      "Gigabyte",
+    ],
     groups: [
       { key: "panel", name: "Panel", order: 10 },
       { key: "image", name: "Image", order: 20 },
@@ -605,6 +660,18 @@ export const TARGET_CATEGORIES: CategoryConfig[] = [
     description: "Wired and wireless headphones and earbuds.",
     icon: "headphones",
     sortOrder: 60,
+    majorBrands: [
+      "Sony",
+      "Bose",
+      "Apple",
+      "Sennheiser",
+      "Jabra",
+      "JBL",
+      "Audio-Technica",
+      "Beyerdynamic",
+      "Shure",
+      "Anker",
+    ],
     groups: [
       { key: "design", name: "Design", order: 10 },
       { key: "audio", name: "Audio", order: 20 },

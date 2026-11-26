@@ -120,3 +120,19 @@ describe("remote images", () => {
     );
   });
 });
+
+describe("import env defaults", () => {
+  it("treats empty numeric settings as unset and allows the fixture provider only in demo mode", () => {
+    const base = { DATABASE_URL: "postgres://u:p@localhost/db", AUTH_SECRET: SECRET };
+    expect(
+      parseEnv({ ...base, UPCITEMDB_DAILY_BUDGET: "", IMPORT_JOB_MAX_ITEMS: "" }),
+    ).toMatchObject({
+      UPCITEMDB_DAILY_BUDGET: 90,
+      IMPORT_JOB_MAX_ITEMS: 500,
+    });
+    expect(() => parseEnv({ ...base, FIXTURE_PROVIDER: "true" })).toThrow(/ENABLE_DEMO_DATA/);
+    expect(
+      parseEnv({ ...base, FIXTURE_PROVIDER: "true", ENABLE_DEMO_DATA: "true" }).FIXTURE_PROVIDER,
+    ).toBe(true);
+  });
+});

@@ -75,6 +75,10 @@ The app validates all variables at startup and refuses to start with a readable 
 
 Do not run `pnpm db:seed` against a real catalogue: it loads fictional demo data.
 
+For the free-data product import: run `pnpm catalog:bootstrap` once after the migrations, and run
+the import worker (`pnpm worker`) on an always-on host or enable the scheduled GitHub Actions
+workflow (`docs/product-import/worker.md`).
+
 ## Backup and restore
 
 **Database.** Use the provider's automated backups / point-in-time recovery, and keep an

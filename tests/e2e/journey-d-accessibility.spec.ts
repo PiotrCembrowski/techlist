@@ -12,6 +12,11 @@ const ADMIN_PAGES = [
   "/admin/imports",
   "/admin/review",
   "/admin/audit",
+  "/admin/import-center",
+  "/admin/import-center/discover",
+  "/admin/import-center/jobs",
+  "/admin/import-center/mappings",
+  "/admin/import-center/coverage",
 ];
 
 test("admin pages pass axe (WCAG 2.1 A/AA)", async ({ page }) => {

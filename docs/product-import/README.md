@@ -1,89 +1,89 @@
 # Free-data product import
 
-Imports product data from sources that are free to use today, with every value traceable to its
-source and nothing published without an editor's review. Decisions: `docs/DECISIONS.md` D77–D78.
+Imports product data from sources that are free to use, with every value traceable to its source
+and nothing published without an editor's review. Decisions: `docs/DECISIONS.md` D77–D80.
 
-## Sources
-
-| Provider                     | Role                                                                   | Status                                                                    |
-| ---------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| Open Icecat (free tier only) | Primary: identity, specifications, images                              | Stage 4 — needs its current API documentation checked first               |
-| Wikidata / Wikimedia Commons | Identity, release dates, links; Commons images with per-image licences | Stage 5 — needs its current API documentation checked first               |
-| UPCitemdb (free trial)       | GTIN enrichment / cross-check only, ≤ 90 lookups a day here, no offers | Stage 6 — terms decide whether values may be stored or only cross-checked |
-| eBay Browse API              | Optional, off by default                                               | Stage 7 — only after a licence report and the owner's approval            |
-
-Not used: Amazon, Full Icecat, paid UPCitemdb plans, Best Buy, any scraping. If a source stops
-being free, work on it stops and the owner is told; nothing switches to a paid plan.
+| Page                                                     | What it covers                                                         |
+| -------------------------------------------------------- | ---------------------------------------------------------------------- |
+| [providers.md](providers.md)                             | Each provider: role, access, free limits, status, setup                |
+| [workflow.md](workflow.md)                               | First import, bulk imports, review and publish, troubleshooting        |
+| [worker.md](worker.md)                                   | Running the job worker locally, on a host, or on a schedule            |
+| [identity-and-provenance.md](identity-and-provenance.md) | Normalisation, duplicate detection, variants, provenance, safe updates |
+| [licensing.md](licensing.md)                             | Licence, attribution and image rules                                   |
 
 ## How it fits together
 
 ```
-admin Import Center ──queue──▶ import_jobs (kind = provider) ──▶ worker (pnpm worker)
-                                                                    │
-                    provider adapter (capabilities, licence, quotas, allowed hosts)
-                                                                    │
-                     shared HTTP client ── response cache ── quota ledger (reserve before call)
-                                                                    │
-                   ProviderRecord ──▶ normalise ──▶ match ──▶ apply or queue for review
-                                                     (GTIN → MPN+brand → model+brand; names only suggest)
+Admin → Import Center ──queue──▶ import_jobs (kind = provider) ──▶ worker (pnpm worker)
+                                                                       │
+                       provider adapter (capabilities, licence, quotas, allowed hosts)
+                                                                       │
+                        shared HTTP client ── response cache ── quota ledger (reserve before call)
+                                                                       │
+                      ProviderRecord ──▶ normalise ──▶ match ──▶ apply as needs_review, or review
+                                                        (GTIN → MPN+brand → model+brand; names only suggest)
 ```
 
-- **Adapters** (`src/modules/providers/core/types.ts`) declare capabilities, licence (store vs
-  cross-check only, attribution, image licensing), quota rules, allowed API hosts and request
-  spacing. They return `ProviderRecord`s and never write to the catalogue.
-- **HTTP client** (`core/http.ts`): https only, the adapter's hosts only, no redirects followed;
-  timeouts; retries for network errors, timeouts, 429 and 5xx with exponential backoff and full
-  jitter; `Retry-After` honoured up to 2 minutes (longer waits reschedule the job); 5 MB body cap;
-  logs with credentials redacted (`src/lib/log.ts`), never headers.
-- **Quota ledger** (`core/quota.ts`, table `provider_quota_usage`): every HTTP attempt first
-  reserves one unit in each of the adapter's quota rules, in one atomic statement per rule that
-  refuses to pass the limit — concurrent workers cannot overshoot. Cached responses use no quota.
-- **Response cache** (`core/cache.ts`): raw responses keyed without credentials, so mappings can be
-  re-run without new calls.
-- **Settings and health** (`core/settings.ts`): a provider runs only when it has an adapter, its
-  env configuration is present and an admin switched it on (audited).
-- **Status** (D77): imported products start as `needs_review`; only editors publish.
-- **Images** (`src/lib/security/remote-images.ts`): provider images are stored as remote URLs
-  with author and licence, start as `needs_review` (an `image_rights` review item) and are shown
-  only when approved and their host is on the allow-list (which also feeds the CSP). The list is
-  empty until each provider's documented image host is verified.
+- **Adapters** (`src/modules/providers/core/types.ts`, registered in
+  `src/modules/providers/adapters/`) declare capabilities, licence, quota rules, allowed API
+  hosts, request spacing and cost. They return records and never write to the catalogue.
+- **HTTP client** (`core/http.ts`): https to the adapter's hosts only, no redirects, timeouts,
+  retries with exponential backoff and full jitter, `Retry-After` (longer than 2 minutes →
+  the job is rescheduled), 5 MB body cap, credential-free logs.
+- **Quota ledger** (`core/quota.ts`): every request first reserves a unit in each limit (the
+  provider's own and the admin's daily cap) with one atomic statement; it refuses before a limit
+  is passed, across all workers. Cached responses cost nothing.
+- **Jobs** (`src/modules/import-jobs`): Postgres tables, claimed with `FOR UPDATE SKIP LOCKED` and
+  a lease; batches, checkpoints, pause/resume, cancel, retry of failed items only, per-job item
+  cap, dedupe of identical jobs. Preview jobs fetch and match without writing.
+- **Import Center** (`/admin/import-center`): providers, discovery and preview, jobs, mappings,
+  coverage; reviews go through the existing review queue.
+- **Status** (D77): imports create `needs_review` products and variants; only editors publish.
 
 ## Configuration
 
 All optional (`.env.example`); the app builds and runs with none of them.
 
-| Variable                                                                      | Purpose                                                            |
-| ----------------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| `ICECAT_USERNAME`, `ICECAT_API_TOKEN`, `ICECAT_CONTENT_TOKEN`                 | Open Icecat account (tokens only if the account has them)          |
-| `ICECAT_DEFAULT_LANG`                                                         | Content language, default `en`                                     |
-| `WIKIDATA_USER_AGENT`                                                         | Required by Wikimedia: client name/version plus a URL or email     |
-| `UPCITEMDB_ENABLED`, `UPCITEMDB_DAILY_BUDGET`                                 | Off by default; our cap (default 90, max 100) under the free limit |
-| `EBAY_ENABLED`, `EBAY_CLIENT_ID`, `EBAY_CLIENT_SECRET`, `EBAY_MARKETPLACE_ID` | Off by default; Stage 7 only                                       |
-| `PROVIDER_LIVE_TESTS`                                                         | Live smoke tests run only when `true`                              |
+| Variable                                                                      | Purpose                                                        |
+| ----------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `ICECAT_USERNAME`, `ICECAT_API_TOKEN`, `ICECAT_CONTENT_TOKEN`                 | Open Icecat account (tokens only if the account has them)      |
+| `ICECAT_DEFAULT_LANG`                                                         | Content language, default `en`                                 |
+| `WIKIDATA_USER_AGENT`                                                         | Required by Wikimedia: client name/version plus a URL or email |
+| `UPCITEMDB_ENABLED`, `UPCITEMDB_DAILY_BUDGET`                                 | Off by default; our own cap (default 90, max 100)              |
+| `EBAY_ENABLED`, `EBAY_CLIENT_ID`, `EBAY_CLIENT_SECRET`, `EBAY_MARKETPLACE_ID` | Off by default; Stage 7 only                                   |
+| `IMPORT_JOB_MAX_ITEMS`                                                        | Hard cap on items per job (default 500, max 5000)              |
+| `FIXTURE_PROVIDER`                                                            | Offline synthetic provider; only with `ENABLE_DEMO_DATA=true`  |
+| `PROVIDER_LIVE_TESTS`                                                         | Live smoke tests run only when `true` (none exist yet)         |
 
-Credentials are read on the server only and never stored in the database or logged.
+Admin settings per provider (Import Center → Providers, owners only): on/off, a daily request
+cap, and a re-sync interval in days.
 
-## First steps
+## Migrations
 
-1. `pnpm db:migrate`
-2. `pnpm catalog:bootstrap --dry-run`, then `pnpm catalog:bootstrap`: creates the six target
-   categories and their specification definitions (never changes existing ones).
-3. Provider adapters and the Import Center follow in Stages 4–9.
-
-How records are matched, merged and protected: [identity-and-provenance.md](identity-and-provenance.md).
+`0006`–`0009` (`pnpm db:migrate`): single status (0007 drops the old status columns — deploy the
+code together with it), import tables, manual provenance and raw records. Then
+`pnpm catalog:bootstrap` creates the six target categories and their specifications.
 
 ## Testing
 
-Ordinary test runs make zero real API calls: the HTTP client takes an injected `fetch`, and the
-unit tests replace the global `fetch` with one that fails the test. Live smoke tests (from Stage 4)
-run only with `PROVIDER_LIVE_TESTS=true`.
+Ordinary test runs make no real API calls: the HTTP client takes an injected `fetch` and the unit
+tests replace the global `fetch` with one that fails the test. Tests use synthetic, labelled
+fixtures only. The Playwright journey `tests/e2e/journey-d-import.spec.ts` runs
+search → preview → import → review → publish with the offline fixture provider and the real
+worker process.
 
 ## Stage status
 
-| Stage | Content                                                                                      | Status                                                                             |
-| ----- | -------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| 1     | Inspection report                                                                            | Done (approved)                                                                    |
-| 2     | Single status; schema; adapter contract; HTTP client; quota ledger; cache; settings; env     | Done                                                                               |
-| 3     | Normalisation, GTIN-14, category definitions + bootstrap, matching, provenance, safe upserts | Done ([details](identity-and-provenance.md))                                       |
-| 4–7   | Icecat, Wikidata, UPCitemdb, eBay adapters                                                   | Blocked: provider documentation sites are not reachable from the build environment |
-| 8–11  | Admin Import Center, jobs/worker, tests and docs, verification                               | Planned                                                                            |
+| Stage | Content                                                                                  | Status                                                                 |
+| ----- | ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| 1     | Inspection report                                                                        | Done (approved)                                                        |
+| 2     | Single status; schema; adapter contract; HTTP client; quota ledger; cache; settings; env | Done                                                                   |
+| 3     | Normalisation, GTIN-14, category definitions + bootstrap, matching, provenance, upserts  | Done                                                                   |
+| 4     | Open Icecat adapter + feature mappings                                                   | **Not built**: documentation not reachable from the build environment  |
+| 5     | Wikidata adapter + Commons image licences                                                | **Not built**: same reason                                             |
+| 6     | UPCitemdb adapter                                                                        | **Not built**: same reason                                             |
+| 7     | eBay adapter                                                                             | **Not built**: needs the licence report and the owner's approval first |
+| 8     | Import Center admin UI                                                                   | Done                                                                   |
+| 9     | Jobs, worker, schedule                                                                   | Done                                                                   |
+| 10    | Tests and documentation                                                                  | Done for everything built                                              |
+| 11    | Verification                                                                             | Done (see the final report)                                            |

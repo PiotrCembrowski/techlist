@@ -15,7 +15,12 @@ export default async function DataProviders() {
         Where catalogue data can come from. CSV files are fully supported. The other adapters are
         placeholders: they make no network requests and need an agreement with the provider,
         credentials in the environment and an implementation before they can be used. See{" "}
-        <code>docs/DATA_ACQUISITION.md</code>.
+        <code>docs/DATA_ACQUISITION.md</code>. Free API providers (Open Icecat, Wikidata, …) are
+        managed in the{" "}
+        <Link href="/admin/import-center" className="text-primary underline">
+          Import Center
+        </Link>
+        .
       </p>
       <AdminTable head={["Provider", "Status", "Settings", "Use"]}>
         <tr>

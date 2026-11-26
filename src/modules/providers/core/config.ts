@@ -15,6 +15,10 @@ export function missingProviderConfig(provider: ProviderKey, env: Env): string[]
       return env.WIKIDATA_USER_AGENT ? [] : ["WIKIDATA_USER_AGENT"];
     case "upcitemdb":
       return env.UPCITEMDB_ENABLED ? [] : ["UPCITEMDB_ENABLED=true"];
+    case "fixture":
+      return env.FIXTURE_PROVIDER && env.ENABLE_DEMO_DATA
+        ? []
+        : ["FIXTURE_PROVIDER=true (demo mode only)"];
     case "ebay":
       return [
         ...(env.EBAY_ENABLED ? [] : ["EBAY_ENABLED=true"]),
@@ -34,15 +38,20 @@ export function httpClientFor(
   adapter: ProviderAdapter,
   env: Env,
   db: DbOrTx,
-  overrides: Partial<HttpClientOptions> = {},
+  overrides: Partial<HttpClientOptions> & { dailyCap?: number | null } = {},
 ): ProviderHttpClient {
+  const { dailyCap, ...rest } = overrides;
   return new ProviderHttpClient({
     provider: adapter.key,
     db,
     allowedHosts: adapter.allowedHosts,
-    quotas: adapter.quotas,
+    // The admin's daily cap is one more ledger rule, on top of the provider's own limits.
+    quotas: [
+      ...adapter.quotas,
+      ...(dailyCap ? [{ bucket: "daily_cap", limit: dailyCap, windowSeconds: 86_400 }] : []),
+    ],
     minIntervalMs: adapter.minIntervalMs,
     userAgent: providerUserAgent(env),
-    ...overrides,
+    ...rest,
   });
 }

@@ -12,7 +12,10 @@ import { PROVIDER_KEYS } from "./types";
 export type ProviderSettings = typeof providerSettings.$inferSelect;
 
 export function isProviderKey(value: unknown): value is ProviderKey {
-  return typeof value === "string" && (PROVIDER_KEYS as readonly string[]).includes(value);
+  return (
+    typeof value === "string" &&
+    (value === "fixture" || (PROVIDER_KEYS as readonly string[]).includes(value))
+  );
 }
 
 /** Settings row for a provider; providers without a row are disabled. */

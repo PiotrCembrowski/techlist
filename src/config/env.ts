@@ -9,6 +9,10 @@ const booleanString = z
   .optional()
   .transform((v) => v === "true" || v === "1");
 
+/** Empty strings (unset CI variables, blank .env lines) fall back to the default. */
+const emptyAsUnset = <T extends z.ZodType>(schema: T) =>
+  z.preprocess((v) => (v === "" ? undefined : v), schema);
+
 /** Empty strings count as unset (common in .env files). */
 const optionalSecret = z
   .string()
@@ -82,7 +86,7 @@ export const envSchema = z
     /** UPCitemdb free trial endpoint (no key). Enrichment/cross-check only. Off unless true. */
     UPCITEMDB_ENABLED: booleanString,
     /** Our own daily cap for UPCitemdb lookups, kept below the provider's free limit. */
-    UPCITEMDB_DAILY_BUDGET: z.coerce.number().int().min(1).max(100).default(90),
+    UPCITEMDB_DAILY_BUDGET: emptyAsUnset(z.coerce.number().int().min(1).max(100).default(90)),
     /** eBay Browse API: Stage 7 only, after the licence report is approved. Off unless true. */
     EBAY_ENABLED: booleanString,
     EBAY_CLIENT_ID: optionalSecret,
@@ -93,8 +97,19 @@ export const envSchema = z
       .default("EBAY_US"),
     /** Live provider smoke tests (`pnpm test:live`) run only when this is true. */
     PROVIDER_LIVE_TESTS: booleanString,
+    /** Offline synthetic provider for tests and trying the Import Center; demo mode only. */
+    FIXTURE_PROVIDER: booleanString,
+    /** Hard cap on the items of one provider job (each job can lower it). */
+    IMPORT_JOB_MAX_ITEMS: emptyAsUnset(z.coerce.number().int().min(1).max(5000).default(500)),
   })
   .superRefine((env, ctx) => {
+    if (env.FIXTURE_PROVIDER && !env.ENABLE_DEMO_DATA) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["FIXTURE_PROVIDER"],
+        message: "FIXTURE_PROVIDER=true is only allowed with ENABLE_DEMO_DATA=true",
+      });
+    }
     if (env.EBAY_ENABLED && !(env.EBAY_CLIENT_ID && env.EBAY_CLIENT_SECRET)) {
       ctx.addIssue({
         code: "custom",

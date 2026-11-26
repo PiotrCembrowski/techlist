@@ -35,7 +35,7 @@ export async function listRecentImports(db: DbOrTx, limit = 5) {
     total_rows: number;
     created_at: string;
   }>(sql`
-    SELECT id, file_name, import_type, status, total_rows, created_at::text FROM import_jobs ORDER BY created_at DESC LIMIT ${limit}`);
+    SELECT id, file_name, import_type, status, total_rows, created_at::text FROM import_jobs WHERE kind = 'csv' ORDER BY created_at DESC LIMIT ${limit}`);
 }
 
 export async function listAuditLogs(

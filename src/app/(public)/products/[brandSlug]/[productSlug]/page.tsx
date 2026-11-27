@@ -362,6 +362,28 @@ export default async function ProductPage(props: Props) {
                       {SOURCE_TYPE[s.type] ?? s.type}
                       {s.retrievedAt ? ` · retrieved ${formatDate(s.retrievedAt)}` : ""}
                     </span>
+                    {s.licence ? (
+                      <span className="block text-xs text-muted-foreground">
+                        Licence:{" "}
+                        {s.licence.url ? (
+                          <a href={s.licence.url} rel="noopener" className="text-primary">
+                            {s.licence.name}
+                          </a>
+                        ) : (
+                          s.licence.name
+                        )}
+                      </span>
+                    ) : null}
+                    {s.attribution ? (
+                      <span className="mt-1 block text-xs">{s.attribution}</span>
+                    ) : null}
+                    {s.importChangedAt ? (
+                      <span className="mt-1 block text-xs text-muted-foreground">
+                        Changed by Specbase on import ({formatDate(s.importChangedAt)}): units
+                        converted to the units shown and text tidied. The values as received are
+                        kept on record.
+                      </span>
+                    ) : null}
                   </li>
                 ))}
               </ul>

@@ -59,7 +59,14 @@ export default function DataPolicyPage() {
         In order of preference: manufacturer documentation, licensed data providers, approved
         affiliate and retailer feeds, manual research, AI-assisted extraction (always reviewed by a
         person before it can be marked verified) and community corrections (reviewed). Each product
-        page lists its sources and when they were retrieved.
+        page lists its sources, when they were retrieved, the licence they are used under and any
+        notice that licence requires.
+      </p>
+      <p>
+        When data is imported from a provider, we convert units to the ones shown here and tidy
+        text: extra spaces and HTML are removed, the brand is not repeated in the product name, and
+        options use our standard spelling. The product page says so for each imported source, with
+        the date, and we keep the values exactly as the provider sent them.
       </p>
       <p>
         A verified value is never overwritten automatically by lower-confidence data; changes go to

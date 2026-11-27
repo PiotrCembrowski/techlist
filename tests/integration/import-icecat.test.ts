@@ -19,6 +19,8 @@ import { closeDb } from "@/lib/db";
 import { setLogSink } from "@/lib/log";
 import { gtinCheckDigit } from "@/lib/validation";
 import { createBrand } from "@/modules/brands/service";
+import { loadProductPage } from "@/modules/products/public";
+import { setProductStatus } from "@/modules/products/service";
 import { bootstrapCatalog } from "@/modules/import-core/bootstrap";
 import { workLoop } from "@/modules/import-jobs/runner";
 import { enqueueProviderJob } from "@/modules/import-jobs/service";
@@ -217,5 +219,26 @@ describe("Open Icecat import", () => {
       .from(products)
       .where(and(eq(products.status, "needs_review")));
     expect(Number(count[0]!.n)).toBe(1);
+
+    // Once published, the page shows the Open Icecat licence, its required notice and the
+    // change notice (OCL §1 and §2a).
+    await setProductStatus(ctx(), product!.id, "published");
+    const page = await loadProductPage(db(), "zorvik", product!.slug);
+    expect(page.kind).toBe("ok");
+    if (page.kind !== "ok") return;
+    const icecat = page.data.sources.find((s) => s.name === "Open Icecat (free)");
+    expect(icecat).toMatchObject({
+      licence: {
+        name: "Open Content License (Open Icecat) v1.4",
+        url: "https://iceclog.com/open-content-license/",
+      },
+    });
+    expect(icecat!.attribution).toMatch(
+      new RegExp(
+        `^Database Right data-sheet ${new Date().getUTCFullYear()} Icecat\\. All rights reserved\\.`,
+      ),
+    );
+    expect(icecat!.attribution).toMatch(/“as is”, without warranty/);
+    expect(icecat!.importChangedAt).toBeInstanceOf(Date);
   });
 });

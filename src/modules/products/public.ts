@@ -41,6 +41,15 @@ export interface DataSourceSummary {
   url: string | null;
   retrievedAt: Date | null;
   isDemo: boolean;
+  /** Licence the data was imported under (from the latest source record, else the source). */
+  licence: { name: string; url: string | null } | null;
+  /** Notice the licence requires to be shown with the data (e.g. Open Icecat's database right). */
+  attribution: string | null;
+  /**
+   * Set for provider imports: when the import last changed this product's data from the source.
+   * Imports convert units and tidy text, and some licences (Open Icecat OCL §2a) require saying so.
+   */
+  importChangedAt: Date | null;
 }
 
 export interface RelatedLink {
@@ -182,9 +191,24 @@ export async function loadProductPage(
       source_url: string | null;
       retrieved_at: string | null;
       is_demo: boolean;
+      licence_name: string | null;
+      licence_url: string | null;
+      attribution: string | null;
+      import_changed_at: string | null;
     }>(sql`
       SELECT s.source_name, s.source_type, s.source_url, s.is_demo,
-             greatest(max(r.retrieved_at), s.retrieved_at)::text AS retrieved_at
+             greatest(max(r.retrieved_at), s.retrieved_at)::text AS retrieved_at,
+             coalesce((array_agg(r.license_type ORDER BY r.retrieved_at DESC NULLS LAST)
+                       FILTER (WHERE r.license_type IS NOT NULL))[1], s.license_type) AS licence_name,
+             (array_agg(r.license_url ORDER BY r.retrieved_at DESC NULLS LAST)
+                       FILTER (WHERE r.license_url IS NOT NULL))[1] AS licence_url,
+             CASE WHEN s.attribution_required THEN
+               coalesce((array_agg(r.attribution_text ORDER BY r.retrieved_at DESC NULLS LAST)
+                         FILTER (WHERE r.attribution_text IS NOT NULL))[1], s.license_notes)
+             END AS attribution,
+             CASE WHEN s.provider_key IS NOT NULL THEN
+               max(coalesce(r.last_changed_at, r.first_seen_at, r.retrieved_at))::text
+             END AS import_changed_at
       FROM sources s
       LEFT JOIN product_source_records r ON r.source_id = s.id AND r.product_id = ${product.id}
       WHERE s.id IN (
@@ -254,6 +278,14 @@ export async function loadProductPage(
         url: s.source_url,
         retrievedAt: s.retrieved_at ? new Date(s.retrieved_at) : null,
         isDemo: s.is_demo,
+        licence: s.licence_name
+          ? {
+              name: s.licence_name,
+              url: s.licence_url && /^https:\/\//i.test(s.licence_url) ? s.licence_url : null,
+            }
+          : null,
+        attribution: s.attribution,
+        importChangedAt: s.import_changed_at ? new Date(s.import_changed_at) : null,
       })),
       images,
       indexability: getIndexability({

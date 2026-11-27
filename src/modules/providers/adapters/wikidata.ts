@@ -244,19 +244,14 @@ function features(entity: Entity, labels: Map<string, Entity>): ProviderFeature[
     const type = statements[0]?.mainsnak.datatype;
     const name = labelOf(labels.get(p)) ?? p;
     if (type === "quantity") {
-      // One feature per value: several quantities (e.g. per configuration) are not merged.
+      // Only a single value: several quantities for one property are usually different
+      // configurations (e.g. 128 and 256 GB storage) and are never merged into one value.
       const values = statements.map(quantityOf).filter((q) => q !== null);
-      const units = new Set(values.map((q) => q.unitId));
-      if (values.length === 0 || units.size > 1) continue;
-      const unitId = values[0]!.unitId;
+      if (values.length !== 1) continue;
+      const { amount, unitId } = values[0]!;
       const unit = unitId ? labelOf(labels.get(unitId)) : null;
       if (unitId && !unit) continue; // never guess a unit
-      out.push({
-        externalId: p,
-        name,
-        value: values.map((q) => q.amount).join("; "),
-        unit,
-      });
+      out.push({ externalId: p, name, value: amount, unit });
       continue;
     }
     const values = statements

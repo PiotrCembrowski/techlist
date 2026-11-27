@@ -151,6 +151,22 @@ describe("parseIcecatResponse", () => {
     expect(parseIcecatResponse(200, JSON.stringify(okBody()))!.payloadHash).toBe(r.payloadHash);
   });
 
+  it("prefers the short generated title over the long marketing title", () => {
+    // Live responses carry the long title in Title and GeneratedLocalTitle (checked 2026-11-27).
+    const long = 'Zorvik Quillo 7 Fixture Tablet 27.9 cm (11") 128 GB Wi-Fi Silver';
+    const body = okBody();
+    const g = body.data.GeneralInfo as Record<string, unknown>;
+    g.Title = long;
+    g.TitleInfo = {
+      GeneratedIntTitle: "Zorvik Quillo 7",
+      GeneratedLocalTitle: { Value: long, Language: "EN" },
+      BrandLocalTitle: { Value: "", Language: "EN" },
+    };
+    expect(parseIcecatResponse(200, JSON.stringify(body))!.name).toBe("Zorvik Quillo 7");
+    delete (g.TitleInfo as Record<string, unknown>).GeneratedIntTitle;
+    expect(parseIcecatResponse(200, JSON.stringify(body))!.name).toBe(long);
+  });
+
   it("falls back to the other titles and tolerates missing sections", () => {
     const body = okBody();
     const g = body.data.GeneralInfo as Record<string, unknown>;

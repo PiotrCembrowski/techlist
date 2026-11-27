@@ -166,9 +166,12 @@ export function icecatRecord(data: IcecatData, payloadHash: string, now: Date): 
     providerProductId: g.IcecatId,
     url: page && /^https:\/\//i.test(page) ? page : null,
     brand: blank(g.Brand),
+    // GeneratedIntTitle is brand + family + series + product name ("DELL G5 5587"). In live
+    // responses GeneratedLocalTitle and Title can be the long marketing title with key specs
+    // (checked 2026-11-27), so they are only fallbacks.
     name:
-      blank(g.TitleInfo?.GeneratedLocalTitle?.Value) ??
       blank(g.TitleInfo?.GeneratedIntTitle) ??
+      blank(g.TitleInfo?.GeneratedLocalTitle?.Value) ??
       blank(g.Title),
     // Icecat has no separate model-number field; ProductName is a name, not a model number.
     modelNumber: null,

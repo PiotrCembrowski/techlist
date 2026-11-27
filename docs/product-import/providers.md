@@ -33,15 +33,19 @@ Sources read: [Manual for Channel Partners: Icecat Product JSON](https://iceclog
 | Values         | `RawValue` for comparison, `PresentationValue` for display; unit in `Feature.Measure.Signs._`; release date `DD-MM-YYYY`; `GTIN` holds confirmed GTINs only               | Imports `RawValue` + unit sign; converts the date to ISO; no quality marker exists in Product JSON                                          |
 | Files / images | “Icecat is not a file host”: download images and host them yourself; do not link to Icecat file links                                                                     | **Images are not imported** (re-hosting is not built; see [licensing.md](licensing.md))                                                     |
 
-Not available from the build environment: `live-origin.icecat.biz`, `data.icecat.biz` and
-`images.icecat.biz` were refused by its network policy, so the adapter was tested only against
-synthetic responses shaped like the manual's examples. Check one GTIN with **Test connection**
-and a small preview before larger jobs.
+Live check (2026-11-27, with the owner's API token, local dev database): **Test connection**
+passed; a preview of Icecat product 56195846 (the manual's example) returned 203 features with
+the shapes above, and after a brand mapping, a category mapping (Icecat 151 "Laptops") and six
+feature mappings it was eligible with screen size, RAM, storage, OS, battery and weight parsed
+(2700 g → 2.7 kg; `"` read as inches). Differences from the manual: `GeneratedLocalTitle` and
+`Title` hold the long marketing title, so the adapter names products from `GeneratedIntTitle`
+("DELL G5 5587"). A GTIN restricted by its brand returned error 14 and was reported as such.
 
 Mappings: Icecat feature IDs (`Feature.ID`) and category IDs differ per category and are not
 seeded — none could be verified here. After a first preview, map them from Mappings →
-Unmapped features (by ID; name mappings also work). Yes/no features arrive as `Y`/`N`: add a
-value map (`{"Y": "yes", "N": "no"}`) to boolean mappings.
+Unmapped features (by ID; name mappings also work). Yes/no features arrive as `Y`/`N`, which the
+specification parser already reads as yes/no; inch values arrive with the unit `"`, which the
+unit registry reads as inches.
 
 ## Setting a provider up (once its adapter exists)
 

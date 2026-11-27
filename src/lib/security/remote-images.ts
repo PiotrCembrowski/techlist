@@ -3,11 +3,12 @@
  * shown only when its host is listed here AND an editor approved its rights (image_rights review).
  * The CSP's img-src is built from the same list.
  *
- * Empty until each provider's documented image host is verified. Open Icecat is not listed on
+ * Each host is added only once its provider's terms were checked. Open Icecat is not listed on
  * purpose: Icecat asks partners to host its images themselves rather than link to them (D81).
- * Wikimedia Commons: Stage 5. Exact host names only: no wildcards.
+ * upload.wikimedia.org serves Wikimedia Commons files; Commons allows hotlinking as long as each
+ * file's licence terms are followed (D83). Exact host names only: no wildcards.
  */
-export const REMOTE_IMAGE_HOSTS: readonly string[] = [];
+export const REMOTE_IMAGE_HOSTS: readonly string[] = ["upload.wikimedia.org"];
 
 /** https only, a listed host on the default port, and no credentials in the URL. */
 export function isAllowedRemoteImage(

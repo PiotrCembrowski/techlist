@@ -7,6 +7,8 @@ export interface PublicImage {
   src: string;
   alt: string;
   attribution: string | null;
+  /** Where the credit links to: the file's source page, else its licence. */
+  attributionUrl: string | null;
   isPrimary: boolean;
 }
 
@@ -28,6 +30,8 @@ type Row = {
   remote_url: string | null;
   alt_text: string;
   attribution_text: string | null;
+  source_url: string | null;
+  license_url: string | null;
   is_primary: boolean;
   product_id: string;
 };
@@ -44,6 +48,7 @@ const toImage = (r: Row & { src: string }): PublicImage => ({
   src: r.src,
   alt: r.alt_text,
   attribution: r.attribution_text,
+  attributionUrl: [r.source_url, r.license_url].find((u) => u && /^https:\/\//i.test(u)) ?? null,
   isPrimary: r.is_primary,
 });
 
@@ -63,7 +68,7 @@ export async function getProductGallery(
   limit = 12,
 ): Promise<PublicImage[]> {
   const rows = await db.execute<Row>(sql`
-    SELECT i.id, i.storage_key, i.remote_url, i.alt_text, i.attribution_text, i.is_primary, i.product_id
+    SELECT i.id, i.storage_key, i.remote_url, i.alt_text, i.attribution_text, i.source_url, i.license_url, i.is_primary, i.product_id
     FROM product_images i LEFT JOIN sources s ON s.id = i.source_id
     WHERE i.product_id = ${productId} AND ${VISIBLE}
       AND (i.variant_id IS NULL ${variantId ? sql`OR i.variant_id = ${variantId}` : sql``})
@@ -79,7 +84,7 @@ export async function getPrimaryImages(
 ): Promise<Map<string, PublicImage>> {
   if (productIds.length === 0) return new Map();
   const rows = await db.execute<Row>(sql`
-    SELECT DISTINCT ON (i.product_id) i.id, i.storage_key, i.remote_url, i.alt_text, i.attribution_text, i.is_primary, i.product_id
+    SELECT DISTINCT ON (i.product_id) i.id, i.storage_key, i.remote_url, i.alt_text, i.attribution_text, i.source_url, i.license_url, i.is_primary, i.product_id
     FROM product_images i LEFT JOIN sources s ON s.id = i.source_id
     WHERE i.product_id = ANY(${sql.param(productIds.slice(0, 200))}::uuid[]) AND i.variant_id IS NULL AND ${VISIBLE}
     ORDER BY i.product_id, i.is_primary DESC, i.display_order, i.created_at`);

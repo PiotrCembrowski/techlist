@@ -1,4 +1,4 @@
-import { count, eq, sql } from "drizzle-orm";
+import { count, eq, ne, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   products,
@@ -170,8 +170,9 @@ describe("offers and products", () => {
     );
     const [a] = await db().select().from(products).where(eq(products.id, m1!.id));
     const [b] = await db().select().from(products).where(eq(products.id, m2!.id));
-    expect(a!.publicationStatus).toBe("published");
-    expect(b!.publicationStatus).toBe("archived");
+    expect(a).toMatchObject({ status: "published" });
+    expect(a!.lastVerifiedAt).toBeInstanceOf(Date);
+    expect(b).toMatchObject({ status: "rejected" });
   });
 });
 
@@ -306,7 +307,7 @@ describe("public corrections", () => {
     const [draft] = await db()
       .select()
       .from(products)
-      .where(eq(products.publicationStatus, "archived"))
+      .where(ne(products.status, "published"))
       .limit(1);
     await expect(
       submitCorrection(db(), { ...base, key: "", productId: draft!.id }, "198.51.100.20"),

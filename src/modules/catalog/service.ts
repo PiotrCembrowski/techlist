@@ -38,7 +38,6 @@ export interface ProductCardData {
   shortDescription: string | null;
   releaseYear: number | null;
   productStatus: string;
-  verificationStatus: string;
   lastVerifiedAt: Date | null;
   isDemo: boolean;
   brand: { slug: string; name: string };
@@ -62,7 +61,6 @@ type Row = {
   short_description: string | null;
   release_date: string | null;
   product_status: string;
-  verification_status: string;
   last_verified_at: string | null;
   is_demo: boolean;
   category_id: string;
@@ -74,11 +72,7 @@ type Row = {
 };
 
 function buildWhere(scope: CatalogScope, f: CatalogFilters, opts: CatalogOptions): SQL {
-  const parts: SQL[] = [
-    sql`p.publication_status = 'published'`,
-    sql`b.is_active`,
-    sql`c.is_active`,
-  ];
+  const parts: SQL[] = [sql`p.status = 'published'`, sql`b.is_active`, sql`c.is_active`];
   if (scope.categoryIds?.length)
     parts.push(sql`p.category_id = ANY(${sql.param(scope.categoryIds)}::uuid[])`);
   if (scope.brandId) parts.push(sql`p.brand_id = ${scope.brandId}`);
@@ -162,7 +156,7 @@ export async function listCatalog(
   const [rows, [countRow]] = await Promise.all([
     db.execute<Row>(sql`
       SELECT p.id, p.slug, p.name, p.model_number, p.short_description, p.release_date::text, p.product_status,
-             p.verification_status, p.last_verified_at::text, p.is_demo, p.category_id,
+             p.last_verified_at::text, p.is_demo, p.category_id,
              b.slug AS brand_slug, b.name AS brand_name, c.slug AS category_slug, c.name AS category_name, c.icon AS category_icon
       ${from}
       WHERE ${where}
@@ -238,7 +232,6 @@ async function toCards(db: DbOrTx, rows: Row[], opts: CatalogOptions): Promise<P
       shortDescription: r.short_description,
       releaseYear: r.release_date ? Number(r.release_date.slice(0, 4)) : null,
       productStatus: r.product_status,
-      verificationStatus: r.verification_status,
       lastVerifiedAt: r.last_verified_at ? new Date(r.last_verified_at) : null,
       isDemo: r.is_demo,
       brand: { slug: r.brand_slug, name: r.brand_name },
@@ -260,11 +253,11 @@ export async function getProductCards(
   if (productIds.length === 0) return [];
   const rows = (await db.execute<Row>(sql`
     SELECT p.id, p.slug, p.name, p.model_number, p.short_description, p.release_date::text, p.product_status,
-           p.verification_status, p.last_verified_at::text, p.is_demo, p.category_id,
+           p.last_verified_at::text, p.is_demo, p.category_id,
            b.slug AS brand_slug, b.name AS brand_name, c.slug AS category_slug, c.name AS category_name, c.icon AS category_icon
     FROM products p JOIN brands b ON b.id = p.brand_id JOIN categories c ON c.id = p.category_id
     WHERE p.id = ANY(${sql.param(productIds.slice(0, MAX_PAGE_SIZE))}::uuid[])
-      AND p.publication_status = 'published' AND b.is_active`)) as unknown as Row[];
+      AND p.status = 'published' AND b.is_active`)) as unknown as Row[];
   const order = new Map(productIds.map((id, i) => [id, i]));
   rows.sort((a, b) => order.get(a.id)! - order.get(b.id)!);
   return toCards(db, rows, opts);
@@ -286,7 +279,7 @@ export async function getFilterRanges(
   const rows = await db.execute<{ definition_id: string; min: string; max: string }>(sql`
     SELECT ps.specification_definition_id AS definition_id, min(ps.value_numeric)::text AS min, max(ps.value_numeric)::text AS max
     FROM product_specifications ps JOIN products p ON p.id = ps.product_id
-    WHERE p.publication_status = 'published' AND p.category_id = ANY(${sql.param(categoryIds)}::uuid[])
+    WHERE p.status = 'published' AND p.category_id = ANY(${sql.param(categoryIds)}::uuid[])
       AND ps.specification_definition_id = ANY(${sql.param(definitionIds)}::uuid[]) AND ps.value_numeric IS NOT NULL
     GROUP BY 1`);
   return new Map(

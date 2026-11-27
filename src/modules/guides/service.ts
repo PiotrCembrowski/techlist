@@ -109,7 +109,7 @@ export async function getPublishedGuide(
   const [products, categories] = await Promise.all([
     db.execute<{ slug: string; name: string; brand_slug: string; brand_name: string }>(sql`
       SELECT p.slug, p.name, b.slug AS brand_slug, b.name AS brand_name FROM guide_products gp
-      JOIN products p ON p.id = gp.product_id AND p.publication_status = 'published'
+      JOIN products p ON p.id = gp.product_id AND p.status = 'published'
       JOIN brands b ON b.id = p.brand_id
       WHERE gp.guide_id = ${row.id} ORDER BY p.name LIMIT 24`),
     db.execute<{ slug: string; name: string }>(sql`

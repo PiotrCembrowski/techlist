@@ -94,7 +94,7 @@ export async function resolveOfferRedirect(
   }>(sql`
     SELECT o.id, o.product_url, o.affiliate_url, o.is_active, (o.expires_at IS NOT NULL AND o.expires_at < now()) AS expired,
            o.is_demo, r.is_active AS retailer_active, r.allowed_redirect_hosts,
-           (p.publication_status = 'published') AS product_published
+           (p.status = 'published') AS product_published
     FROM retailer_offers o
     JOIN retailers r ON r.id = o.retailer_id
     JOIN products p ON p.id = o.product_id

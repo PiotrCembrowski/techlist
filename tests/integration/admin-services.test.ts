@@ -219,8 +219,8 @@ describe("catalogue admin services", () => {
     });
     expect(first.isPrimary).toBe(true);
     expect(second.isPrimary).toBe(false);
-    expect(existsSync(path.join(UPLOAD_DIR, first.storageKey))).toBe(true);
-    expect((await getStorage().get(first.storageKey))?.contentType).toBe("image/png");
+    expect(existsSync(path.join(UPLOAD_DIR, first.storageKey!))).toBe(true);
+    expect((await getStorage().get(first.storageKey!))?.contentType).toBe("image/png");
 
     const gallery = await getProductGallery(db(), p.id, null);
     expect(gallery.map((g) => g.alt)).toEqual(["Front view", "Back view"]);
@@ -237,7 +237,7 @@ describe("catalogue admin services", () => {
     expect(primaries.filter((i) => i.productId === p.id).map((i) => i.id)).toEqual([second.id]);
 
     await deleteProductImage(ctx(), second.id);
-    expect(existsSync(path.join(UPLOAD_DIR, second.storageKey))).toBe(false);
+    expect(existsSync(path.join(UPLOAD_DIR, second.storageKey!))).toBe(false);
     const [promoted] = await db()
       .select()
       .from(productImages)

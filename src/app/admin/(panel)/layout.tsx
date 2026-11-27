@@ -14,7 +14,8 @@ const NAV = [
   { href: "/admin/offers", label: "Offers" },
   { href: "/admin/sources", label: "Sources" },
   { href: "/admin/review", label: "Review queue" },
-  { href: "/admin/imports", label: "Import & export" },
+  { href: "/admin/import-center", label: "Import Center" },
+  { href: "/admin/imports", label: "CSV import & export" },
   { href: "/admin/data-sources", label: "Data providers" },
   { href: "/admin/audit", label: "Audit log" },
 ];

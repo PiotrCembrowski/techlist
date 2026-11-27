@@ -94,6 +94,18 @@ products go to the review queue (`src/modules/review-queue`), where editors appr
 after editing) or reject with a note; decisions are remembered for later re-imports. Details:
 `docs/DATA_ACQUISITION.md`.
 
+Products and variants have one status (`draft → needs_review → verified → published`, plus
+`rejected` / `archived`; `src/modules/products/status.ts`, DECISIONS D77). Imported products start
+as `needs_review`; only `published` ones are public.
+
+Free-data provider import (`src/modules/providers/core`, `docs/product-import/`): adapters with
+declared capabilities, licence and quotas; one HTTP client with a host allow-list, retries and
+redacted logs; a database quota ledger reserved before every call; a raw response cache; admin
+enable switches and health. Normalisation, matching and provenance live in
+`src/modules/import-core`; provider jobs and the worker (`pnpm worker`) in
+`src/modules/import-jobs`; the admin Import Center in `/admin/import-center`. Adapters for the
+individual providers follow once their documentation is verified.
+
 ## SEO
 
 `getIndexability()` decides every page's robots rule (mirrored once in SQL for the sitemap);

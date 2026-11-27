@@ -245,6 +245,9 @@ export interface SetSpecificationInput {
   confidence?: number | null;
   /** Requesting "verified" stamps last_verified_at. Ignored (forced to unverified) for AI-extracted values. */
   verificationStatus?: "unverified" | "verified";
+  /** Imports: the value and unit exactly as the source gave them. */
+  rawValue?: string | null;
+  rawUnit?: string | null;
 }
 
 export type SetSpecificationResult =
@@ -375,6 +378,8 @@ export async function setSpecificationValue(
         confidence,
         verificationStatus: status,
         lastVerifiedAt: status === "verified" ? new Date() : null,
+        rawValue: input.rawValue ?? null,
+        rawUnit: input.rawUnit ?? null,
       } as const;
 
       let row: ProductSpecification;

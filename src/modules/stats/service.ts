@@ -17,13 +17,12 @@ export async function getCatalogStats(db: DbOrTx): Promise<CatalogStats> {
     verified: number;
   }>(sql`
     SELECT
-      (SELECT count(*)::int FROM products WHERE publication_status = 'published') AS products,
-      (SELECT count(DISTINCT brand_id)::int FROM products WHERE publication_status = 'published') AS brands,
+      (SELECT count(*)::int FROM products WHERE status = 'published') AS products,
+      (SELECT count(DISTINCT brand_id)::int FROM products WHERE status = 'published') AS brands,
       (SELECT count(DISTINCT o.market_country_code)::int FROM retailer_offers o
-         JOIN products p ON p.id = o.product_id AND p.publication_status = 'published'
+         JOIN products p ON p.id = o.product_id AND p.status = 'published'
         WHERE o.is_active AND (o.expires_at IS NULL OR o.expires_at > now())) AS markets,
-      (SELECT count(*)::int FROM products WHERE publication_status = 'published'
-         AND verification_status IN ('verified', 'partially_verified')
+      (SELECT count(*)::int FROM products WHERE status = 'published'
          AND last_verified_at > now() - interval '7 days') AS verified`);
   return {
     products: Number(row?.products ?? 0),

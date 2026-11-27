@@ -20,14 +20,14 @@ import {
   comparisonDirection,
   imageType,
   linkType,
+  catalogStatus,
+  imageRightsStatus,
   productStatus,
-  publicationStatus,
   relationshipType,
   sourceType,
   specDataType,
   specOrigin,
   specVerificationStatus,
-  verificationStatus,
 } from "./enums";
 
 // ─── Sources (provenance) ──────────────────────────────────────────────────────────────
@@ -47,10 +47,21 @@ export const sources = pgTable(
     attributionRequired: boolean().notNull().default(false),
     /** Imports refuse sources where this is false. Unknown rights default to "not permitted". */
     usagePermitted: boolean().notNull().default(false),
+    /** Adapter key (e.g. `icecat`, `wikidata`) for sources fed by a provider adapter; one source per provider. */
+    providerKey: text(),
     isDemo: boolean().notNull().default(false),
     ...timestamps,
   },
-  (t) => [uniqueIndex("sources_name_uq").on(sql`lower(${t.sourceName})`)],
+  (t) => [
+    uniqueIndex("sources_name_uq").on(sql`lower(${t.sourceName})`),
+    uniqueIndex("sources_provider_key_uq")
+      .on(t.providerKey)
+      .where(sql`${t.providerKey} IS NOT NULL`),
+    check(
+      "sources_provider_key_ck",
+      sql`${t.providerKey} IS NULL OR ${t.providerKey} ~ '^[a-z][a-z0-9_]{1,31}$'`,
+    ),
+  ],
 );
 
 // ─── Brands ────────────────────────────────────────────────────────────────────────────
@@ -161,8 +172,9 @@ export const products = pgTable(
     announcedDate: date({ mode: "string" }),
     discontinuedDate: date({ mode: "string" }),
     productStatus: productStatus().notNull().default("unknown"),
-    publicationStatus: publicationStatus().notNull().default("draft"),
-    verificationStatus: verificationStatus().notNull().default("draft"),
+    /** Single lifecycle status (draft → needs_review → verified → published; rejected, archived). */
+    status: catalogStatus().notNull().default("draft"),
+    /** Set when an editor verifies the product; kept when it is published. */
     lastVerifiedAt: timestamp({ withTimezone: true }),
     isFeatured: boolean().notNull().default(false),
     isDemo: boolean().notNull().default(false),
@@ -187,8 +199,8 @@ export const products = pgTable(
     // Exact identifier lookups in search (case-insensitive).
     index("products_model_number_lower_idx").on(sql`lower(${t.modelNumber})`),
     index("products_mpn_lower_idx").on(sql`lower(${t.manufacturerPartNumber})`),
-    index("products_category_pub_idx").on(t.categoryId, t.publicationStatus),
-    index("products_brand_pub_idx").on(t.brandId, t.publicationStatus),
+    index("products_category_status_idx").on(t.categoryId, t.status),
+    index("products_brand_status_idx").on(t.brandId, t.status),
     index("products_family_idx").on(t.familyId),
     index("products_created_idx").on(t.createdAt.desc()),
     check("products_slug_ck", sql`${SLUG_CHECK(t.slug)} AND position('-vs-' in ${t.slug}) = 0`),
@@ -216,7 +228,8 @@ export const productVariants = pgTable(
     barcodeGtin: text(),
     sku: text(),
     isDefault: boolean().notNull().default(false),
-    isActive: boolean().notNull().default(true),
+    /** Only `published` variants are shown publicly. */
+    status: catalogStatus().notNull().default("draft"),
     ...timestamps,
   },
   (t) => [
@@ -316,6 +329,9 @@ export const productSpecifications = pgTable(
     sourceId: uuid().references(() => sources.id, { onDelete: "set null" }),
     origin: specOrigin().notNull().default("manual"),
     confidence: numeric({ precision: 4, scale: 3, mode: "number" }),
+    /** The value and unit exactly as the source gave them, before normalisation (imports only). */
+    rawValue: text(),
+    rawUnit: text(),
     verificationStatus: specVerificationStatus().notNull().default("unverified"),
     lastVerifiedAt: timestamp({ withTimezone: true }),
     ...timestamps,
@@ -360,11 +376,35 @@ export const productSourceRecords = pgTable(
     rawDataReference: text(),
     retrievedAt: timestamp({ withTimezone: true }),
     notes: text(),
+    /** Provider's own ID for the record (Icecat product ID, Wikidata QID, …); unique per source. */
+    providerProductId: text(),
+    /** sha256 of the normalised provider payload; a sync only re-applies when it changes. */
+    payloadHash: text(),
+    firstSeenAt: timestamp({ withTimezone: true }),
+    lastSeenAt: timestamp({ withTimezone: true }),
+    lastChangedAt: timestamp({ withTimezone: true }),
+    /** Licence of this record's data as the provider states it, and the attribution to show. */
+    licenseType: text(),
+    licenseUrl: text(),
+    attributionText: text(),
+    /** The provider's own quality/verification marker for the record (e.g. Icecat "ICECAT"/"SUPPLIER"). */
+    providerQuality: text(),
+    /** The provider record as received (normalised form; size-capped). Nothing is discarded. */
+    rawRecord: jsonb().$type<Record<string, unknown>>(),
+    /** Provider features with no mapping yet (for the unmapped-feature report). */
+    unmappedFeatures: jsonb().$type<unknown[]>(),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     index("product_source_records_product_idx").on(t.productId),
     unique("product_source_records_uq").on(t.productId, t.variantId, t.sourceId).nullsNotDistinct(),
+    uniqueIndex("product_source_records_provider_id_uq")
+      .on(t.sourceId, t.providerProductId)
+      .where(sql`${t.providerProductId} IS NOT NULL`),
+    check(
+      "product_source_records_hash_ck",
+      sql`${t.payloadHash} IS NULL OR ${t.payloadHash} ~ '^[0-9a-f]{64}$'`,
+    ),
   ],
 );
 
@@ -394,8 +434,19 @@ export const productImages = pgTable(
       .notNull()
       .references(() => products.id, { onDelete: "cascade" }),
     variantId: uuid().references(() => productVariants.id, { onDelete: "cascade" }),
-    /** Key in the StorageDriver. Uploaded files only — never an external URL. */
-    storageKey: text().notNull().unique(),
+    /** Key in the StorageDriver (uploaded files). Exactly one of storageKey / remoteUrl. */
+    storageKey: text().unique(),
+    /**
+     * Provider-hosted image (https only; host must be on the image allow-list). Shown publicly only
+     * once rightsStatus = approved (DECISIONS D78).
+     */
+    remoteUrl: text(),
+    width: integer(),
+    height: integer(),
+    mimeType: text(),
+    author: text(),
+    licenseUrl: text(),
+    rightsStatus: imageRightsStatus().notNull().default("approved"),
     altText: text().notNull(),
     imageType: imageType().notNull().default("product"),
     sourceId: uuid().references(() => sources.id, { onDelete: "set null" }),
@@ -411,6 +462,18 @@ export const productImages = pgTable(
       .where(sql`${t.isPrimary}`),
     index("product_images_product_idx").on(t.productId, t.displayOrder),
     check("product_images_key_ck", sql`${t.storageKey} !~ '^[a-z]+://'`),
+    check("product_images_one_location_ck", sql`num_nonnulls(${t.storageKey}, ${t.remoteUrl}) = 1`),
+    check(
+      "product_images_remote_https_ck",
+      sql`${t.remoteUrl} IS NULL OR ${t.remoteUrl} ~ '^https://'`,
+    ),
+    check(
+      "product_images_size_ck",
+      sql`(${t.width} IS NULL OR ${t.width} > 0) AND (${t.height} IS NULL OR ${t.height} > 0)`,
+    ),
+    uniqueIndex("product_images_remote_uq")
+      .on(t.productId, t.remoteUrl)
+      .where(sql`${t.remoteUrl} IS NOT NULL`),
   ],
 );
 

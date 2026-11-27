@@ -52,6 +52,6 @@ export async function resolvePublicRedirect(db: DbOrTx, pathname: string): Promi
 async function liveProductBrand(db: DbOrTx, productSlug: string): Promise<string | null> {
   const [row] = await db.execute<{ brand_slug: string }>(sql`
     SELECT b.slug AS brand_slug FROM products p JOIN brands b ON b.id = p.brand_id AND b.is_active
-    WHERE p.slug = ${productSlug} AND p.publication_status = 'published'`);
+    WHERE p.slug = ${productSlug} AND p.status = 'published'`);
   return row?.brand_slug ?? null;
 }

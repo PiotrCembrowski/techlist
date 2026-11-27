@@ -38,17 +38,26 @@ async function productInfo(db: DbOrTx, productId: string | null | undefined) {
     brand: string;
     slug: string;
     brand_slug: string;
-    publication_status: string;
+    status: string;
   }>(sql`
-    SELECT p.id, p.name, b.name AS brand, p.slug, b.slug AS brand_slug, p.publication_status
+    SELECT p.id, p.name, b.name AS brand, p.slug, b.slug AS brand_slug, p.status
     FROM products p JOIN brands b ON b.id = p.brand_id WHERE p.id = ${productId}`);
   if (!p) return null;
   return {
     id: p.id,
     name: p.name,
     brand: p.brand,
-    href: p.publication_status === "published" ? `/products/${p.brand_slug}/${p.slug}` : null,
+    href: p.status === "published" ? `/products/${p.brand_slug}/${p.slug}` : null,
   };
+}
+
+async function sourceName(db: DbOrTx, sourceId: unknown): Promise<string | null> {
+  if (typeof sourceId !== "string") return null;
+  const [s] = await db
+    .select({ name: sources.sourceName })
+    .from(sources)
+    .where(eq(sources.id, sourceId));
+  return s?.name ?? null;
 }
 
 /** Everything the review screen shows for one item, by type. */
@@ -173,7 +182,7 @@ export async function getReviewDetails(db: DbOrTx, item: ReviewItem): Promise<Re
         ...base,
         product,
         facts: [
-          { label: "Created by", value: p.source === "import" ? "CSV import (draft)" : "—" },
+          { label: "Created by", value: p.source === "import" ? "Import (needs review)" : "—" },
           ...(product
             ? [
                 {
@@ -184,8 +193,8 @@ export async function getReviewDetails(db: DbOrTx, item: ReviewItem): Promise<Re
               ]
             : []),
         ],
-        approveLabel: "Approve and publish",
-        rejectLabel: "Archive",
+        approveLabel: "Verify and publish",
+        rejectLabel: "Reject product",
       };
     }
     case "correction": {
@@ -215,8 +224,50 @@ export async function getReviewDetails(db: DbOrTx, item: ReviewItem): Promise<Re
         rejectLabel: "Reject",
       };
     }
+    case "field_conflict": {
+      const product = await productInfo(db, p.productId as string);
+      const source = await sourceName(db, p.sourceId);
+      const show = (v: unknown) => (v === null || v === undefined || v === "" ? "—" : String(v));
+      return {
+        ...base,
+        product,
+        facts: [
+          { label: "Field", value: String(p.field) + (p.variantId ? " (variant)" : "") },
+          { label: "Current value", value: show(p.current) },
+          { label: "Proposed value", value: show(p.proposed) },
+          { label: "Source", value: source ?? "—" },
+        ],
+        editable: {
+          label: "Value to apply",
+          defaultValue: show(p.proposed) === "—" ? "" : String(p.proposed),
+          hint: "Check it against the source first. Empty clears the field.",
+        },
+        approveLabel: "Apply value",
+        rejectLabel: "Keep current value",
+      };
+    }
+    case "image_rights": {
+      const product = await productInfo(db, p.productId as string);
+      const url = typeof p.remoteUrl === "string" ? p.remoteUrl : "";
+      return {
+        ...base,
+        product,
+        facts: [
+          { label: "Image", value: url, href: url },
+          { label: "Provider", value: String(p.provider ?? "—") },
+          { label: "Author", value: String(p.author ?? "not stated") },
+          { label: "Licence", value: String(p.licenseType ?? "not stated") },
+          ...(typeof p.licenseUrl === "string"
+            ? [{ label: "Licence terms", value: p.licenseUrl, href: p.licenseUrl }]
+            : []),
+        ],
+        approveLabel: "Rights confirmed: show image",
+        rejectLabel: "Do not use image",
+      };
+    }
     case "duplicate_candidate":
     case "variant_ambiguity": {
+      if (p.kind === "provider") return providerDetails(db, item, base);
       const row = p.row as {
         brand: string;
         productName: string;
@@ -277,4 +328,93 @@ function rawOf(def: { dataType: string; canonicalUnit: string | null }, v: Colum
   if (v.valueBoolean !== null) return v.valueBoolean ? "yes" : "no";
   if (v.valueJson) return v.valueJson.join(", ");
   return v.valueDate ?? v.valueText ?? "";
+}
+
+/** Provider duplicate / variant-ambiguity items (import system, DECISIONS D79). */
+async function providerDetails(
+  db: DbOrTx,
+  item: ReviewItem,
+  base: ReviewDetails,
+): Promise<ReviewDetails> {
+  const p = item.payload as Record<string, unknown>;
+  const rec = (p.product ?? {}) as {
+    brand?: { value?: string | null };
+    name?: { value?: string | null };
+    modelNumber?: { value?: string | null };
+    mpn?: { value?: string | null };
+    gtins?: string[];
+    sourceUrl?: string | null;
+    variant?: {
+      storage?: string | null;
+      memory?: string | null;
+      colour?: { value?: string | null };
+    };
+  };
+  const config = [rec.variant?.storage, rec.variant?.memory, rec.variant?.colour?.value]
+    .filter(Boolean)
+    .join(" · ");
+  const facts: ReviewDetails["facts"] = [
+    { label: "Reason", value: String(p.reason ?? "") },
+    {
+      label: `${String(p.provider)} record`,
+      value: `${rec.brand?.value ?? ""} ${rec.name?.value ?? ""} (ID ${String(p.providerProductId)})`,
+      ...(rec.sourceUrl ? { href: rec.sourceUrl } : {}),
+    },
+    {
+      label: "Model / MPN",
+      value: [rec.modelNumber?.value, rec.mpn?.value].filter(Boolean).join(" / ") || "—",
+    },
+    { label: "GTIN", value: rec.gtins?.join(", ") || "—" },
+    { label: "Configuration", value: config || "—" },
+  ];
+  if (item.itemType === "variant_ambiguity") {
+    const product = await productInfo(db, p.productId as string);
+    const ids = (p.variantIds as string[]) ?? [];
+    const variants = ids.length
+      ? await db.execute<{ id: string; variant_name: string }>(sql`
+          SELECT id, variant_name FROM product_variants WHERE id = ANY(${sql.param(ids)}::uuid[])`)
+      : [];
+    return {
+      ...base,
+      product,
+      facts,
+      choices: [
+        ...variants.map((v) => ({
+          value: v.id,
+          label: `Same configuration as “${v.variant_name}”`,
+        })),
+        { value: "new", label: "A new variant of this product" },
+      ],
+      approveLabel: "Apply",
+      rejectLabel: "Do not import",
+    };
+  }
+  const candidates =
+    (p.candidates as {
+      productId: string;
+      name: string;
+      rule: string;
+      confidence: number;
+      reason: string;
+    }[]) ?? [];
+  for (const c of candidates)
+    facts.push({
+      label: `Candidate (${c.rule}, ${Math.round(c.confidence * 100)} %)`,
+      value: `${c.name} — ${c.reason}`,
+      href: `/admin/products/${c.productId}`,
+    });
+  const unique = [...new Map(candidates.map((c) => [c.productId, c])).values()];
+  return {
+    ...base,
+    facts,
+    choices: [
+      ...unique.flatMap((c) => [
+        { value: c.productId, label: `Same product as ${c.name} (merge)` },
+        { value: `variant:${c.productId}`, label: `A variant of ${c.name}` },
+      ]),
+      { value: "new", label: "A different product (keep separate)" },
+    ],
+    approveLabel: "Apply",
+    rejectLabel: "Do not import",
+  };
 }

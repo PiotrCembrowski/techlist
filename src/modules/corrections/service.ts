@@ -75,7 +75,7 @@ export async function submitCorrection(
   const [product] = await db
     .select({ id: products.id, categoryId: products.categoryId, name: products.name })
     .from(products)
-    .where(and(eq(products.id, d.productId), eq(products.publicationStatus, "published")));
+    .where(and(eq(products.id, d.productId), eq(products.status, "published")));
   if (!product) throw new ValidationError("This product cannot be corrected");
   if (d.key) {
     const defs = await getEffectiveDefinitions(db, product.categoryId);

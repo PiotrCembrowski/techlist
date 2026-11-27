@@ -12,6 +12,7 @@ import { slugify } from "@/lib/validation";
 import { recordAudit } from "@/modules/audit/service";
 import { inTransaction, type ServiceContext, type Tx } from "@/modules/_shared/context";
 import { InvalidStateError, NotFoundError, ValidationError } from "@/modules/_shared/errors";
+import { applyFieldConflict, setImageRights } from "./import-items";
 
 export type ReviewItem = typeof reviewItems.$inferSelect;
 export type ReviewItemType = ReviewItem["itemType"];
@@ -25,6 +26,8 @@ export const REVIEW_TYPES: { value: ReviewItemType; label: string; single: strin
   { value: "new_product", label: "New products", single: "New product" },
   { value: "correction", label: "Corrections", single: "Reader correction" },
   { value: "suspicious_price", label: "Suspicious prices", single: "Suspicious price" },
+  { value: "field_conflict", label: "Field conflicts", single: "Field conflict" },
+  { value: "image_rights", label: "Image rights", single: "Image rights check" },
 ];
 
 /** Queue an item for human review. */
@@ -237,6 +240,26 @@ export async function approveReviewItem(
             confidence: (p.confidence as number | null) ?? null,
           },
         );
+        if (
+          typeof p.provider === "string" &&
+          typeof p.proposedSourceId === "string" &&
+          !input.value
+        ) {
+          // The provider's value was accepted: it becomes the field's current source.
+          const { recordProvenance, specField } = await import("@/modules/import-core/provenance");
+          await recordProvenance(tx, {
+            productId: p.productId as string,
+            variantId: (p.variantId as string | null) ?? null,
+            field: specField(p.key as string),
+            value: p.proposed,
+            rawValue: p.rawValue ?? p.proposed,
+            retrievedAt: new Date(),
+            sourceId: p.proposedSourceId,
+            provider: p.provider,
+            providerProductId: String(p.providerProductId ?? ""),
+            confidence: Number(p.confidence ?? 0),
+          });
+        }
         return finish(tx, ctx, item, "approved", note);
       case "unverified_spec":
         await applySpecValue(tx, ctx, item.entityId!, null, input.value);
@@ -245,10 +268,12 @@ export async function approveReviewItem(
         // The price was checked and is correct: nothing to change.
         return finish(tx, ctx, item, "approved", note);
       case "new_product": {
+        // Approving a new product is "verify & publish" (it was checked in the review).
         const { getProductById, publishProduct } = await import("@/modules/products/service");
         const product = await getProductById(tx, item.entityId!);
         if (!product) throw new InvalidStateError("The product no longer exists");
-        if (product.publicationStatus === "draft") await publishProduct(sctx, product.id);
+        if (["draft", "needs_review", "verified"].includes(product.status))
+          await publishProduct(sctx, product.id);
         return finish(tx, ctx, item, "approved", note);
       }
       case "correction": {
@@ -274,8 +299,22 @@ export async function approveReviewItem(
         return finish(tx, ctx, item, "approved", note);
       }
       case "duplicate_candidate":
-      case "variant_ambiguity":
+      case "variant_ambiguity": {
+        if (p.kind === "provider") {
+          if (!input.choice) throw new ValidationError("Choose what this record is");
+          const { resolveProviderReview } = await import("@/modules/import-core/apply");
+          const result = await resolveProviderReview(sctx, item, input.choice);
+          if (result.status === "blocked") throw new InvalidStateError(result.notes.join("; "));
+          return finish(tx, ctx, item, "approved", note);
+        }
         return approveImportRow(tx, ctx, item, input, note);
+      }
+      case "field_conflict":
+        await applyFieldConflict(sctx, p, input.value ?? undefined);
+        return finish(tx, ctx, item, "approved", note);
+      case "image_rights":
+        await setImageRights(tx, ctx, item.entityId!, "approved");
+        return finish(tx, ctx, item, "approved", note);
     }
   });
 }
@@ -398,10 +437,10 @@ export async function rejectReviewItem(
         break;
       }
       case "new_product": {
-        const { getProductById, archiveProduct } = await import("@/modules/products/service");
+        const { getProductById, rejectProduct } = await import("@/modules/products/service");
         const product = await getProductById(tx, item.entityId!);
-        if (product && product.publicationStatus === "draft")
-          await archiveProduct(sctx, product.id);
+        if (product && (product.status === "draft" || product.status === "needs_review"))
+          await rejectProduct(sctx, product.id);
         break;
       }
       case "unverified_spec": {
@@ -422,8 +461,13 @@ export async function rejectReviewItem(
         }
         break;
       }
+      case "image_rights":
+        await setImageRights(tx, ctx, item.entityId!, "rejected").catch((e) => {
+          if (!(e instanceof NotFoundError)) throw e;
+        });
+        break;
       default:
-        // conflicting_value: the verified value stays. Import conflicts: the row is skipped on
+        // field_conflict and conflicting_value: the stored value stays. Import conflicts: the row is skipped on
         // re-import. Corrections: nothing changes.
         break;
     }

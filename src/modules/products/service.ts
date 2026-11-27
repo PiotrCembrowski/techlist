@@ -18,6 +18,8 @@ import {
   ValidationError,
 } from "@/modules/_shared/errors";
 import { onlyProvided } from "@/modules/_shared/patch";
+import { changedFields } from "@/modules/_shared/patch";
+import { PRODUCT_FIELDS, recordManualEdits } from "@/modules/import-core/provenance";
 import { recordSlugChange } from "@/modules/slugs/service";
 import {
   checkProductDates,
@@ -26,9 +28,15 @@ import {
   type ProductInput,
   type ProductUpdate,
 } from "./schema";
+import {
+  canTransition,
+  STATUS_LABELS,
+  transitionAction,
+  transitionPatch,
+  type CatalogStatus,
+} from "./status";
 
 export type Product = typeof products.$inferSelect;
-type VerificationStatus = Product["verificationStatus"];
 
 async function assertReferences(
   tx: Tx,
@@ -53,8 +61,15 @@ async function assertReferences(
   }
 }
 
-/** New products always start as drafts; use publishProduct() to make them public. */
-export async function createProduct(ctx: ServiceContext, input: ProductInput): Promise<Product> {
+/**
+ * New products start as drafts (or `needs_review` when an import creates them for the review
+ * queue); setProductStatus() moves them on. Never published directly.
+ */
+export async function createProduct(
+  ctx: ServiceContext,
+  input: ProductInput,
+  opts: { status?: "draft" | "needs_review" } = {},
+): Promise<Product> {
   const data = parseOrThrow(productInputSchema, input, "Invalid product");
   const slug = data.slug ?? slugify(data.name);
   parseOrThrow(productInputSchema, { ...input, slug }, "Invalid product slug");
@@ -63,7 +78,7 @@ export async function createProduct(ctx: ServiceContext, input: ProductInput): P
       await assertReferences(tx, data);
       const [row] = await tx
         .insert(products)
-        .values({ ...data, slug, publicationStatus: "draft", verificationStatus: "draft" })
+        .values({ ...data, slug, status: opts.status ?? "draft" })
         .returning();
       await recordAudit(tx, {
         actorId: ctx.actorId,
@@ -79,10 +94,16 @@ export async function createProduct(ctx: ServiceContext, input: ProductInput): P
   }
 }
 
+/**
+ * Updates a product. By default the changed fields are recorded as manual provenance (an
+ * admin's hand edit, which provider imports never overwrite); the provider import passes
+ * `provenance: "none"` and records its own.
+ */
 export async function updateProduct(
   ctx: ServiceContext,
   id: string,
   patch: ProductUpdate,
+  opts: { provenance?: "manual" | "none" } = {},
 ): Promise<Product> {
   const data = onlyProvided(parseOrThrow(productUpdateSchema, patch, "Invalid product"), patch);
   try {
@@ -98,6 +119,14 @@ export async function updateProduct(
       const [row] = await tx.update(products).set(data).where(eq(products.id, id)).returning();
       if (data.slug && data.slug !== before.slug)
         await recordSlugChange(tx, "product", before.slug, data.slug);
+      if (opts.provenance !== "none")
+        await recordManualEdits(
+          tx,
+          { productId: id, variantId: null },
+          PRODUCT_FIELDS,
+          changedFields(before, data),
+          ctx.actorId,
+        );
       await recordAudit(tx, {
         actorId: ctx.actorId,
         entityType: "product",
@@ -113,25 +142,34 @@ export async function updateProduct(
   }
 }
 
-async function transition(
+export { canTransition, STATUS_TRANSITIONS, type CatalogStatus } from "./status";
+
+/** Changes a product's status, enforcing STATUS_TRANSITIONS; audited as publish/verify/… */
+export async function setProductStatus(
   ctx: ServiceContext,
   id: string,
-  action: string,
-  apply: (before: Product) => Partial<typeof products.$inferInsert>,
+  to: CatalogStatus,
 ): Promise<Product> {
   return inTransaction(ctx, async (tx) => {
     const [before] = await tx.select().from(products).where(eq(products.id, id)).for("update");
     if (!before) throw new NotFoundError("Product", id);
+    const from = before.status;
+    if (from === to)
+      throw new InvalidStateError(`Product is already ${STATUS_LABELS[to].toLowerCase()}`);
+    if (!canTransition(from, to))
+      throw new InvalidStateError(
+        `A ${STATUS_LABELS[from].toLowerCase()} product cannot be moved to ${STATUS_LABELS[to].toLowerCase()}`,
+      );
     const [row] = await tx
       .update(products)
-      .set(apply(before))
+      .set({ status: to, ...transitionPatch(from, to, new Date()) })
       .where(eq(products.id, id))
       .returning();
     await recordAudit(tx, {
       actorId: ctx.actorId,
       entityType: "product",
       entityId: id,
-      action,
+      action: transitionAction(from, to),
       previous: before,
       next: row,
     });
@@ -139,46 +177,25 @@ async function transition(
   });
 }
 
-export function publishProduct(ctx: ServiceContext, id: string): Promise<Product> {
-  return transition(ctx, id, "publish", (p) => {
-    if (p.publicationStatus === "published")
-      throw new InvalidStateError("Product is already published");
-    if (p.verificationStatus === "rejected")
-      throw new InvalidStateError("Rejected products cannot be published");
-    return { publicationStatus: "published" };
-  });
-}
-
+export const publishProduct = (ctx: ServiceContext, id: string) =>
+  setProductStatus(ctx, id, "published");
+/** published → verified: hidden from the public site, verification kept. */
+export const unpublishProduct = (ctx: ServiceContext, id: string) =>
+  setProductStatus(ctx, id, "verified");
+export const verifyProduct = (ctx: ServiceContext, id: string) =>
+  setProductStatus(ctx, id, "verified");
+export const submitProductForReview = (ctx: ServiceContext, id: string) =>
+  setProductStatus(ctx, id, "needs_review");
+export const rejectProduct = (ctx: ServiceContext, id: string) =>
+  setProductStatus(ctx, id, "rejected");
 /** "Delete" in the admin means archive. */
-export function archiveProduct(ctx: ServiceContext, id: string): Promise<Product> {
-  return transition(ctx, id, "archive", (p) => {
-    if (p.publicationStatus === "archived")
-      throw new InvalidStateError("Product is already archived");
-    return { publicationStatus: "archived", isFeatured: false };
-  });
-}
+export const archiveProduct = (ctx: ServiceContext, id: string) =>
+  setProductStatus(ctx, id, "archived");
+/** archived / rejected → draft. */
+export const restoreProduct = (ctx: ServiceContext, id: string) =>
+  setProductStatus(ctx, id, "draft");
 
-export function unpublishProduct(ctx: ServiceContext, id: string): Promise<Product> {
-  return transition(ctx, id, "unpublish", (p) => {
-    if (p.publicationStatus === "draft") throw new InvalidStateError("Product is already a draft");
-    return { publicationStatus: "draft" };
-  });
-}
-
-const VERIFIED_STATES: VerificationStatus[] = ["verified", "partially_verified"];
-
-export function verifyProduct(
-  ctx: ServiceContext,
-  id: string,
-  status: VerificationStatus,
-): Promise<Product> {
-  return transition(ctx, id, `verification:${status}`, () => ({
-    verificationStatus: status,
-    lastVerifiedAt: VERIFIED_STATES.includes(status) ? new Date() : null,
-  }));
-}
-
-/** Hard delete is only allowed for drafts, and requires explicit confirmation. */
+/** Hard delete is only allowed for drafts and rejected products, with explicit confirmation. */
 export async function deleteDraftProduct(
   ctx: ServiceContext,
   id: string,
@@ -188,8 +205,10 @@ export async function deleteDraftProduct(
   await inTransaction(ctx, async (tx) => {
     const [before] = await tx.select().from(products).where(eq(products.id, id)).for("update");
     if (!before) throw new NotFoundError("Product", id);
-    if (before.publicationStatus !== "draft")
-      throw new InvalidStateError("Only draft products can be deleted; archive it instead");
+    if (before.status !== "draft" && before.status !== "rejected")
+      throw new InvalidStateError(
+        "Only draft or rejected products can be deleted; archive it instead",
+      );
     await tx.delete(products).where(eq(products.id, id));
     await recordAudit(tx, {
       actorId: ctx.actorId,
@@ -212,7 +231,7 @@ export async function getPublishedProductBySlug(db: DbOrTx, slug: string) {
     .select({ product: products, brandSlug: brands.slug, brandName: brands.name })
     .from(products)
     .innerJoin(brands, eq(brands.id, products.brandId))
-    .where(and(eq(products.slug, slug), eq(products.publicationStatus, "published")))
+    .where(and(eq(products.slug, slug), eq(products.status, "published")))
     .limit(1);
   return row ?? null;
 }
@@ -224,7 +243,7 @@ export interface ListProductsOptions {
   brandId?: string;
   productStatus?: Product["productStatus"];
   /** Defaults to published only. */
-  publicationStatus?: Product["publicationStatus"] | "any";
+  status?: CatalogStatus | "any";
   sort?: "newest" | "name" | "release_date";
 }
 
@@ -232,8 +251,8 @@ export async function listProducts(db: DbOrTx, opts: ListProductsOptions = {}) {
   const pageSize = clampLimit(opts.pageSize, 24, MAX_PAGE_SIZE);
   const page = Math.max(1, Math.trunc(opts.page ?? 1));
   const filters: SQL[] = [];
-  const pub = opts.publicationStatus ?? "published";
-  if (pub !== "any") filters.push(eq(products.publicationStatus, pub));
+  const status = opts.status ?? "published";
+  if (status !== "any") filters.push(eq(products.status, status));
   if (opts.categoryId) filters.push(eq(products.categoryId, opts.categoryId));
   if (opts.brandId) filters.push(eq(products.brandId, opts.brandId));
   if (opts.productStatus) filters.push(eq(products.productStatus, opts.productStatus));

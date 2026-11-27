@@ -94,7 +94,7 @@ export class PostgresSearchService implements SearchService {
       JOIN brands b ON b.id = p.brand_id AND b.is_active
       LEFT JOIN LATERAL (
         SELECT v.variant_code FROM product_variants v
-        WHERE v.product_id = p.id AND v.is_active
+        WHERE v.product_id = p.id AND v.status = 'published'
           AND (v.barcode_gtin = ${exact} OR lower(v.manufacturer_part_number) = lower(${exact}))
         LIMIT 1
       ) vm ON TRUE
@@ -108,7 +108,7 @@ export class PostgresSearchService implements SearchService {
                ) AS sim
       ) m
       WHERE p.id IN (${candidates})
-        AND p.publication_status = 'published'
+        AND p.status = 'published'
         AND (m.exact OR ${tsMatch} OR m.sim >= ${FUZZY_THRESHOLD})`;
     // The trigram operators use these thresholds; set them below our own so the index returns a
     // superset of what the final filter keeps. SET LOCAL needs a transaction.
@@ -128,7 +128,7 @@ export class PostgresSearchService implements SearchService {
     const folded = fold(q);
     const rows = await this.db.execute<{ slug: string; name: string; n: number }>(sql`
       SELECT b.slug, b.name,
-             (SELECT count(*)::int FROM products p WHERE p.brand_id = b.id AND p.publication_status = 'published') AS n
+             (SELECT count(*)::int FROM products p WHERE p.brand_id = b.id AND p.status = 'published') AS n
       FROM brands b
       WHERE b.is_active AND (
         lower(sb_unaccent(b.name)) LIKE '%' || ${folded} || '%'
@@ -169,7 +169,7 @@ export class PostgresSearchService implements SearchService {
           SELECT b.name || ' ' || p.name AS term,
                  word_similarity(${folded}, lower(sb_unaccent(b.name || ' ' || p.name))) AS s
           FROM products p JOIN brands b ON b.id = p.brand_id
-          WHERE p.publication_status = 'published' AND ${folded} <% p.search_text
+          WHERE p.status = 'published' AND ${folded} <% p.search_text
           UNION ALL
           SELECT b.name, word_similarity(${folded}, lower(sb_unaccent(b.name))) FROM brands b WHERE b.is_active
         ) t

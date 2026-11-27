@@ -1,4 +1,4 @@
-import { ShieldAlert, ShieldCheck, ShieldHalf } from "lucide-react";
+import { ShieldAlert, ShieldCheck } from "lucide-react";
 import type { Metadata } from "next";
 import { getIndexability } from "@/modules/seo/indexability";
 import { pageMetadata } from "@/modules/seo/metadata";
@@ -19,34 +19,31 @@ export default function DataPolicyPage() {
   return (
     <StaticPage
       title="Data & verification policy"
-      intro="Where specifications come from, and what each verification status means."
+      intro="Where specifications come from, and how they are checked."
     >
-      <h2 id="verification">Verification statuses</h2>
+      <h2 id="verification">Verification</h2>
+      <p>
+        Every product goes through review before it is published. Products imported from data
+        providers start as &ldquo;needs review&rdquo; and only appear here after an editor has
+        checked them.
+      </p>
       <dl className="flex flex-col gap-3">
         <div className="border-t pt-3">
           <dt className="flex items-center gap-2 font-medium text-verified">
             <ShieldCheck aria-hidden="true" strokeWidth={1.5} className="size-4" /> Verified
           </dt>
           <dd className="text-muted-foreground">
-            Every key value has been matched to a source by a person. The date shows when.
-          </dd>
-        </div>
-        <div className="border-t pt-3">
-          <dt className="flex items-center gap-2 font-medium">
-            <ShieldHalf aria-hidden="true" strokeWidth={1.5} className="size-4" /> Partially
-            verified
-          </dt>
-          <dd className="text-muted-foreground">
-            Some values are still awaiting a source. Those values are marked
-            &ldquo;unverified&rdquo;.
+            A person has checked the product&rsquo;s data against its sources. The date shows when.
+            Individual values still awaiting a source are marked &ldquo;unverified&rdquo;.
           </dd>
         </div>
         <div className="border-t pt-3">
           <dt className="flex items-center gap-2 font-medium text-warning">
-            <ShieldAlert aria-hidden="true" strokeWidth={1.5} className="size-4" /> Needs review
+            <ShieldAlert aria-hidden="true" strokeWidth={1.5} className="size-4" /> Not verified yet
           </dt>
           <dd className="text-muted-foreground">
-            The data may be incomplete or preliminary, for example for announced products.
+            The product was published before a full check, for example a newly announced product.
+            Its data may be incomplete or preliminary.
           </dd>
         </div>
       </dl>
@@ -62,7 +59,14 @@ export default function DataPolicyPage() {
         In order of preference: manufacturer documentation, licensed data providers, approved
         affiliate and retailer feeds, manual research, AI-assisted extraction (always reviewed by a
         person before it can be marked verified) and community corrections (reviewed). Each product
-        page lists its sources and when they were retrieved.
+        page lists its sources, when they were retrieved, the licence they are used under and any
+        notice that licence requires.
+      </p>
+      <p>
+        When data is imported from a provider, we convert units to the ones shown here and tidy
+        text: extra spaces and HTML are removed, the brand is not repeated in the product name, and
+        options use our standard spelling. The product page says so for each imported source, with
+        the date, and we keep the values exactly as the provider sent them.
       </p>
       <p>
         A verified value is never overwritten automatically by lower-confidence data; changes go to

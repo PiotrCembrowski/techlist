@@ -8,7 +8,8 @@ import { seedDemoData } from "@/db/seed";
 import { closeDb } from "@/lib/db";
 import { createBrand } from "@/modules/brands/service";
 import { createCategory } from "@/modules/categories/service";
-import { createProduct, publishProduct, verifyProduct } from "@/modules/products/service";
+import { createProduct, setProductStatus } from "@/modules/products/service";
+import type { CatalogStatus } from "@/modules/products/status";
 import { loadProductPage } from "@/modules/products/public";
 import { countIndexableProducts, indexableProductIds } from "@/modules/seo/queries";
 import { sitemapCount, sitemapEntries } from "@/modules/seo/sitemap";
@@ -20,8 +21,8 @@ import { createProductVariant } from "@/modules/variants/service";
 import { ctx, db, truncateAll } from "./helpers";
 
 type Setup = {
-  publish?: boolean;
-  verify?: "verified" | "partially_verified" | "needs_review" | null;
+  /** Final status; defaults to published (via verify & publish). */
+  status?: CatalogStatus;
   demo?: boolean;
   values?: number;
   variantOnly?: boolean;
@@ -70,24 +71,23 @@ beforeAll(async () => {
         value: `v${i}`,
       });
     }
-    if (s.verify) await verifyProduct(ctx(), p.id, s.verify);
-    if (s.publish !== false) await publishProduct(ctx(), p.id);
+    await setProductStatus(ctx(), p.id, s.status ?? "published");
     made[name] = p.id;
   };
-  await make("Exactly sixty", { verify: "verified", values: 3 }); // 3/5 = 60 % → indexable
-  await make("Complete partial", { verify: "partially_verified", values: 5 }); // indexable
-  await make("Too thin", { verify: "verified", values: 2 }); // 40 %
-  await make("Unverified", { verify: "needs_review", values: 5 });
-  await make("Demo copy", { verify: "verified", values: 5, demo: true });
-  await make("Draft only", { verify: "verified", values: 5, publish: false });
-  await make("Variant values", { verify: "verified", values: 5, variantOnly: true }); // not product-level
+  await make("Exactly sixty", { values: 3 }); // 3/5 = 60 % → indexable
+  await make("Complete partial", { values: 5 }); // indexable
+  await make("Too thin", { values: 2 }); // 40 %
+  await make("Unverified", { status: "needs_review", values: 5 });
+  await make("Demo copy", { values: 5, demo: true });
+  await make("Draft only", { status: "verified", values: 5 }); // verified but not published
+  await make("Variant values", { values: 5, variantOnly: true }); // not product-level
 });
 afterAll(closeDb);
 
 describe("indexable_products view", () => {
   it("matches getIndexability for every product", async () => {
     const all = await db()
-      .select({ id: products.id, slug: products.slug, status: products.publicationStatus })
+      .select({ id: products.id, slug: products.slug, status: products.status })
       .from(products);
     const view = await indexableProductIds(
       db(),

@@ -167,7 +167,6 @@ describe("catalogue filter queries", () => {
     ]);
     expect(vanta).toMatchObject({
       isDemo: true,
-      verificationStatus: "verified",
       href: "/products/halden/vanta-14-2026",
     });
   });

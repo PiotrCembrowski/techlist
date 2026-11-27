@@ -224,11 +224,7 @@ export default async function ProductPage(props: Props) {
             <div className="flex items-center gap-2 px-3 py-1.5">
               <dt className="sr-only">Verification</dt>
               <dd className="flex items-center gap-2">
-                <VerificationBadge
-                  status={product.verificationStatus}
-                  verifiedAt={product.lastVerifiedAt}
-                  linkToPolicy
-                />
+                <VerificationBadge verifiedAt={product.lastVerifiedAt} linkToPolicy />
                 {d.sources.length ? (
                   <a href="#sources" className="text-primary">
                     {d.sources.length} {d.sources.length === 1 ? "source" : "sources"}
@@ -355,12 +351,7 @@ export default async function ProductPage(props: Props) {
             <h2 id="sources-title" className="text-xl">
               Data sources
             </h2>
-            <VerificationBadge
-              status={product.verificationStatus}
-              verifiedAt={product.lastVerifiedAt}
-              framed
-              className="w-fit"
-            />
+            <VerificationBadge verifiedAt={product.lastVerifiedAt} framed className="w-fit" />
             {d.sources.length ? (
               <ul className="flex flex-col gap-2 text-sm">
                 {d.sources.map((s) => (
@@ -371,6 +362,28 @@ export default async function ProductPage(props: Props) {
                       {SOURCE_TYPE[s.type] ?? s.type}
                       {s.retrievedAt ? ` · retrieved ${formatDate(s.retrievedAt)}` : ""}
                     </span>
+                    {s.licence ? (
+                      <span className="block text-xs text-muted-foreground">
+                        Licence:{" "}
+                        {s.licence.url ? (
+                          <a href={s.licence.url} rel="noopener" className="text-primary">
+                            {s.licence.name}
+                          </a>
+                        ) : (
+                          s.licence.name
+                        )}
+                      </span>
+                    ) : null}
+                    {s.attribution ? (
+                      <span className="mt-1 block text-xs">{s.attribution}</span>
+                    ) : null}
+                    {s.importChangedAt ? (
+                      <span className="mt-1 block text-xs text-muted-foreground">
+                        Changed by Specbase on import ({formatDate(s.importChangedAt)}): units
+                        converted to the units shown and text tidied. The values as received are
+                        kept on record.
+                      </span>
+                    ) : null}
                   </li>
                 ))}
               </ul>

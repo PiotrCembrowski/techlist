@@ -47,9 +47,9 @@ async function main() {
       INSERT INTO brands (name, slug, is_active, is_demo)
       SELECT 'Benchmark Brand ' || i, 'benchmark-brand-' || i, true, false FROM generate_series(1, 20) i`);
     await db.execute(sql`
-      INSERT INTO products (brand_id, category_id, name, slug, model_number, publication_status, verification_status, product_status, release_date, is_demo)
+      INSERT INTO products (brand_id, category_id, name, slug, model_number, status, last_verified_at, product_status, release_date, is_demo)
       SELECT b.id, c.id, n.name, 'bench-item-' || i, upper(substr(md5('m' || i), 1, 3)) || '-' || (100 + i % 9000) || substr(md5('x' || i), 1, 2), 'published',
-             CASE WHEN i % 4 = 0 THEN 'needs_review' ELSE 'verified' END::verification_status, 'active',
+             CASE WHEN i % 4 = 0 THEN NULL ELSE now() END, 'active',
              date '2020-01-01' + (i % 2000), false
       FROM generate_series(1, ${N}) i
       -- Varied, made-up names: two syllable words plus a number, so text search behaves like a real catalogue.

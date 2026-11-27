@@ -31,7 +31,7 @@ async function loadProduct(brandSlug: string, productSlug: string) {
   }>(sql`
     SELECT p.id, p.name, p.slug, p.category_id, b.name AS brand_name, b.slug AS brand_slug
     FROM products p JOIN brands b ON b.id = p.brand_id AND b.is_active
-    WHERE b.slug = ${brandSlug} AND p.slug = ${productSlug} AND p.publication_status = 'published'`);
+    WHERE b.slug = ${brandSlug} AND p.slug = ${productSlug} AND p.status = 'published'`);
   return p ?? null;
 }
 

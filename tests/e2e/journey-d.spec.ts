@@ -124,8 +124,9 @@ test.describe("Journey D: administration", () => {
     await expectStatus(addSource, "Source recorded");
     await expect(page.getByRole("cell", { name: "Specbase demonstration research" })).toBeVisible();
 
-    const publish = page.getByRole("form", { name: "Publish" });
-    await publish.getByRole("button", { name: "Publish" }).click();
+    // A draft is published in one step ("verify & publish": the editor vouches for the data).
+    const publish = page.getByRole("form", { name: "Verify & publish" });
+    await publish.getByRole("button", { name: "Verify & publish" }).click();
     await expect(page.getByRole("form", { name: "Unpublish" })).toBeVisible();
 
     // The public page shows what was entered.

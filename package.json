@@ -29,6 +29,8 @@
     "db:seed": "tsx scripts/seed/run.ts",
     "db:studio": "drizzle-kit studio",
     "admin:create": "tsx scripts/admin/create.ts",
+    "catalog:bootstrap": "tsx scripts/catalog/bootstrap.ts",
+    "worker": "tsx scripts/worker/run.ts",
     "perf:bench": "tsx scripts/perf/bench.ts"
   },
   "dependencies": {

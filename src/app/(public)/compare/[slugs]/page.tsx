@@ -334,10 +334,7 @@ export default async function ComparisonPage({ params }: Props) {
                     />
                   </div>
                   <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <VerificationBadge
-                      status={p.verificationStatus}
-                      verifiedAt={p.lastVerifiedAt}
-                    />
+                    <VerificationBadge verifiedAt={p.lastVerifiedAt} />
                     {p.isDemo ? <DemoTag /> : null}
                   </div>
                 </th>

@@ -476,7 +476,7 @@ export async function getImportJob(db: DbOrTx, id: string) {
     .select({ job: importJobs, sourceName: sources.sourceName })
     .from(importJobs)
     .innerJoin(sources, eq(sources.id, importJobs.sourceId))
-    .where(eq(importJobs.id, id));
+    .where(and(eq(importJobs.id, id), eq(importJobs.kind, "csv")));
   return row ?? null;
 }
 
@@ -486,6 +486,7 @@ export async function listImportJobs(db: DbOrTx, page = 1) {
     .select({ job: importJobs, sourceName: sources.sourceName })
     .from(importJobs)
     .innerJoin(sources, eq(sources.id, importJobs.sourceId))
+    .where(eq(importJobs.kind, "csv")) // provider jobs are listed in the Import Center
     .orderBy(desc(importJobs.createdAt))
     .limit(pageSize + 1)
     .offset((Math.max(1, page) - 1) * pageSize);
@@ -552,7 +553,7 @@ export async function importErrorReportCsv(
     out.push([r.rowNumber, r.action ?? "", problems, ...headers.map((h) => r.raw[h] ?? "")]);
   }
   const base =
-    job.fileName
+    (job.fileName ?? "import")
       .replace(/\.csv$/i, "")
       .replace(/[^\w.-]+/g, "_")
       .slice(0, 80) || "import";

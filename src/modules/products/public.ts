@@ -41,6 +41,15 @@ export interface DataSourceSummary {
   url: string | null;
   retrievedAt: Date | null;
   isDemo: boolean;
+  /** Licence the data was imported under (from the latest source record, else the source). */
+  licence: { name: string; url: string | null } | null;
+  /** Notice the licence requires to be shown with the data (e.g. Open Icecat's database right). */
+  attribution: string | null;
+  /**
+   * Set for provider imports: when the import last changed this product's data from the source.
+   * Imports convert units and tidy text, and some licences (Open Icecat OCL §2a) require saying so.
+   */
+  importChangedAt: Date | null;
 }
 
 export interface RelatedLink {
@@ -112,13 +121,13 @@ export async function loadProductPage(
 ): Promise<PageLookup<ProductPageData>> {
   const [row] = await db.execute<{ id: string; brand_slug: string; brand_name: string }>(sql`
     SELECT p.id, b.slug AS brand_slug, b.name AS brand_name FROM products p JOIN brands b ON b.id = p.brand_id
-    WHERE p.slug = ${productSlug} AND p.publication_status = 'published' AND b.is_active`);
+    WHERE p.slug = ${productSlug} AND p.status = 'published' AND b.is_active`);
   if (!row) {
     const to = await resolveSlugRedirect(db, "product", productSlug);
     if (!to) return { kind: "not_found" };
     const [target] = await db.execute<{ brand_slug: string }>(sql`
       SELECT b.slug AS brand_slug FROM products p JOIN brands b ON b.id = p.brand_id
-      WHERE p.slug = ${to} AND p.publication_status = 'published' AND b.is_active`);
+      WHERE p.slug = ${to} AND p.status = 'published' AND b.is_active`);
     return target
       ? { kind: "redirect", to: withVariant(productHref(target.brand_slug, to), variantCode) }
       : { kind: "not_found" };
@@ -132,7 +141,7 @@ export async function loadProductPage(
 
   const [product] = await db.select().from(products).where(eq(products.id, row.id));
   if (!product) return { kind: "not_found" };
-  const variants = (await listVariants(db, product.id)).filter((v) => v.isActive);
+  const variants = (await listVariants(db, product.id)).filter((v) => v.status === "published");
   const selectedVariant =
     (variantCode && variants.find((v) => v.variantCode === variantCode)) || null;
 
@@ -169,7 +178,7 @@ export async function loadProductPage(
       JOIN products p ON p.id = CASE WHEN r.source_product_id = ${product.id} THEN r.target_product_id ELSE r.source_product_id END
       JOIN brands b ON b.id = p.brand_id AND b.is_active
       WHERE (r.source_product_id = ${product.id} OR r.target_product_id = ${product.id})
-        AND p.publication_status = 'published'
+        AND p.status = 'published'
       ORDER BY p.release_date DESC NULLS LAST, p.name
       LIMIT 48`),
     // Only links whose source permits display (SPEC §5.2).
@@ -182,9 +191,24 @@ export async function loadProductPage(
       source_url: string | null;
       retrieved_at: string | null;
       is_demo: boolean;
+      licence_name: string | null;
+      licence_url: string | null;
+      attribution: string | null;
+      import_changed_at: string | null;
     }>(sql`
       SELECT s.source_name, s.source_type, s.source_url, s.is_demo,
-             greatest(max(r.retrieved_at), s.retrieved_at)::text AS retrieved_at
+             greatest(max(r.retrieved_at), s.retrieved_at)::text AS retrieved_at,
+             coalesce((array_agg(r.license_type ORDER BY r.retrieved_at DESC NULLS LAST)
+                       FILTER (WHERE r.license_type IS NOT NULL))[1], s.license_type) AS licence_name,
+             (array_agg(r.license_url ORDER BY r.retrieved_at DESC NULLS LAST)
+                       FILTER (WHERE r.license_url IS NOT NULL))[1] AS licence_url,
+             CASE WHEN s.attribution_required THEN
+               coalesce((array_agg(r.attribution_text ORDER BY r.retrieved_at DESC NULLS LAST)
+                         FILTER (WHERE r.attribution_text IS NOT NULL))[1], s.license_notes)
+             END AS attribution,
+             CASE WHEN s.provider_key IS NOT NULL THEN
+               max(coalesce(r.last_changed_at, r.first_seen_at, r.retrieved_at))::text
+             END AS import_changed_at
       FROM sources s
       LEFT JOIN product_source_records r ON r.source_id = s.id AND r.product_id = ${product.id}
       WHERE s.id IN (
@@ -254,14 +278,21 @@ export async function loadProductPage(
         url: s.source_url,
         retrievedAt: s.retrieved_at ? new Date(s.retrieved_at) : null,
         isDemo: s.is_demo,
+        licence: s.licence_name
+          ? {
+              name: s.licence_name,
+              url: s.licence_url && /^https:\/\//i.test(s.licence_url) ? s.licence_url : null,
+            }
+          : null,
+        attribution: s.attribution,
+        importChangedAt: s.import_changed_at ? new Date(s.import_changed_at) : null,
       })),
       images,
       indexability: getIndexability({
         kind: "product",
-        publicationStatus: product.publicationStatus,
+        status: product.status,
         isDemo: product.isDemo,
         brandActive: true, // the lookup above only finds products of active brands
-        verificationStatus: product.verificationStatus,
         requiredTotal: required.length,
         requiredPresent: productLevelPresent,
       }),

@@ -69,6 +69,10 @@ test.describe("SEO and security", () => {
     const robots = await (await request.get("/robots.txt")).text();
     expect(robots).toMatch(/Disallow: \/admin/);
     expect(robots).toMatch(/Disallow: \/go/);
+    // AI-training crawlers are shut out entirely (Open Icecat fair use, D82); search bots are not.
+    for (const bot of ["GPTBot", "CCBot", "Google-Extended", "ClaudeBot"])
+      expect(robots).toMatch(new RegExp(`User-Agent: ${bot}\\n(User-Agent: .*\\n)*Disallow: /\\n`));
+    expect(robots).not.toMatch(/User-Agent: Googlebot/);
     expect(robots).toMatch(/Sitemap: .*\/sitemap\.xml/);
     const index = await request.get("/sitemap.xml");
     expect(index.status()).toBe(200);

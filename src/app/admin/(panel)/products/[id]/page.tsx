@@ -12,9 +12,16 @@ import {
 import { ActionForm, SubmitButton } from "@/components/admin/form";
 import { requireAdmin } from "@/lib/auth/guard";
 import { formatDate } from "@/lib/format";
+import { isAllowedRemoteImage } from "@/lib/security/remote-images";
 import { uuidSchema } from "@/lib/validation";
 import { getAdminOptions, getProductAdmin, searchProductsAdmin } from "@/modules/admin/queries";
 import { productHref } from "@/modules/catalog/service";
+import {
+  CATALOG_STATUSES,
+  STATUS_LABELS,
+  STATUS_TRANSITIONS,
+  transitionLabel,
+} from "@/modules/products/status";
 import {
   addLinkAction,
   addRelationshipAction,
@@ -28,24 +35,17 @@ import {
   updateProductAction,
   updateVariantAction,
   uploadImageAction,
-  verifyProductAction,
 } from "../actions";
 import { ProductFields } from "../product-form";
 
 export const metadata = { title: "Edit product" };
 
+const VARIANT_STATUS_OPTIONS = CATALOG_STATUSES.map((s) => ({ value: s, label: STATUS_LABELS[s] }));
+
 type Props = {
   params: Promise<{ id: string }>;
   searchParams: Promise<{ created?: string; rq?: string }>;
 };
-
-const VERIFICATION = [
-  { value: "draft", label: "Draft" },
-  { value: "needs_review", label: "Needs review" },
-  { value: "partially_verified", label: "Partially verified" },
-  { value: "verified", label: "Verified" },
-  { value: "rejected", label: "Rejected" },
-];
 
 export default async function EditProduct({ params, searchParams }: Props) {
   const { ctx } = await requireAdmin();
@@ -71,10 +71,9 @@ export default async function EditProduct({ params, searchParams }: Props) {
             {brand.name} {product.name}
           </h1>
           <div className="flex flex-wrap items-center gap-2 text-sm">
-            <StatusPill value={product.publicationStatus} />
-            <StatusPill value={product.verificationStatus} />
+            <StatusPill value={product.status} />
             {product.isDemo ? <StatusPill value="demo" /> : null}
-            {product.publicationStatus === "published" ? (
+            {product.status === "published" ? (
               <Link href={publicUrl} className="text-primary">
                 View public page
               </Link>
@@ -105,66 +104,49 @@ export default async function EditProduct({ params, searchParams }: Props) {
         </AdminSection>
 
         <div className="flex flex-col gap-6">
-          <AdminSection title="Publication" id="publication">
+          <AdminSection title="Status" id="status">
             <p className="text-sm text-muted-foreground">
-              Only published products are public. “Delete” means archive; drafts can be deleted
-              permanently.
+              Only published products are public. Publish only after checking the values against a
+              source. Last verified: {formatDate(product.lastVerifiedAt) ?? "never"}.
             </p>
             <div className="flex flex-wrap gap-2">
-              {product.publicationStatus !== "published" ? (
-                <ActionForm action={productStatusAction} aria-label="Publish">
-                  <input type="hidden" name="id" value={product.id} />
-                  <input type="hidden" name="op" value="publish" />
-                  <SubmitButton>Publish</SubmitButton>
-                </ActionForm>
-              ) : (
-                <ActionForm action={productStatusAction} aria-label="Unpublish">
-                  <input type="hidden" name="id" value={product.id} />
-                  <input type="hidden" name="op" value="unpublish" />
-                  <SubmitButton variant="secondary">Unpublish</SubmitButton>
-                </ActionForm>
-              )}
-              {product.publicationStatus !== "archived" ? (
+              {STATUS_TRANSITIONS[product.status].map((to) => {
+                const text = transitionLabel(product.status, to);
+                const danger = to === "archived" || to === "rejected";
+                return (
+                  <ActionForm
+                    key={to}
+                    action={productStatusAction}
+                    aria-label={text}
+                    confirm={
+                      to === "archived"
+                        ? "Archive this product? It will disappear from the public site."
+                        : undefined
+                    }
+                  >
+                    <input type="hidden" name="id" value={product.id} />
+                    <input type="hidden" name="op" value={to} />
+                    <SubmitButton
+                      variant={to === "published" ? undefined : danger ? "danger" : "secondary"}
+                    >
+                      {text}
+                    </SubmitButton>
+                  </ActionForm>
+                );
+              })}
+              {product.status === "draft" || product.status === "rejected" ? (
                 <ActionForm
                   action={productStatusAction}
-                  aria-label="Archive"
-                  confirm="Archive this product? It will disappear from the public site."
-                >
-                  <input type="hidden" name="id" value={product.id} />
-                  <input type="hidden" name="op" value="archive" />
-                  <SubmitButton variant="danger">Archive</SubmitButton>
-                </ActionForm>
-              ) : null}
-              {product.publicationStatus === "draft" ? (
-                <ActionForm
-                  action={productStatusAction}
-                  aria-label="Delete draft"
-                  confirm="Permanently delete this draft and everything attached to it?"
+                  aria-label="Delete permanently"
+                  confirm="Permanently delete this product and everything attached to it?"
                 >
                   <input type="hidden" name="id" value={product.id} />
                   <input type="hidden" name="op" value="delete" />
                   <input type="hidden" name="confirm" value="yes" />
-                  <SubmitButton variant="danger">Delete draft</SubmitButton>
+                  <SubmitButton variant="danger">Delete permanently</SubmitButton>
                 </ActionForm>
               ) : null}
             </div>
-          </AdminSection>
-
-          <AdminSection title="Verification" id="verification">
-            <ActionForm action={verifyProductAction} aria-label="Verification">
-              <input type="hidden" name="id" value={product.id} />
-              <SelectField
-                name="verificationStatus"
-                label="Status"
-                options={VERIFICATION}
-                defaultValue={product.verificationStatus}
-              />
-              <p className="text-xs text-muted-foreground">
-                Last verified: {formatDate(product.lastVerifiedAt) ?? "never"}. Only mark verified
-                after checking values against a source.
-              </p>
-              <SubmitButton variant="secondary">Save verification</SubmitButton>
-            </ActionForm>
           </AdminSection>
 
           <AdminSection title="Specifications" id="specs">
@@ -263,7 +245,13 @@ export default async function EditProduct({ params, searchParams }: Props) {
               ) : (
                 <CheckboxField name="makeDefault" label="Make default" />
               )}
-              <CheckboxField name="inactive" label="Inactive" defaultChecked={!v.isActive} />
+              <SelectField
+                idPrefix={v.id}
+                name="status"
+                label="Status"
+                options={VARIANT_STATUS_OPTIONS}
+                defaultValue={v.status}
+              />
               <SubmitButton variant="secondary">Save variant</SubmitButton>
             </div>
           </ActionForm>
@@ -308,16 +296,25 @@ export default async function EditProduct({ params, searchParams }: Props) {
           <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {images.map((img) => (
               <li key={img.id} className="flex flex-col gap-2 border p-3">
-                {/* eslint-disable-next-line @next/next/no-img-element -- admin thumbnail of an uploaded file */}
-                <img
-                  src={`/media/${img.storageKey}`}
-                  alt={img.altText}
-                  className="aspect-square w-full bg-muted object-contain"
-                />
+                {img.storageKey || (img.remoteUrl && isAllowedRemoteImage(img.remoteUrl)) ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- admin thumbnail
+                  <img
+                    src={img.storageKey ? `/media/${img.storageKey}` : img.remoteUrl!}
+                    alt={img.altText}
+                    className="aspect-square w-full bg-muted object-contain"
+                  />
+                ) : (
+                  <a href={img.remoteUrl ?? "#"} className="text-xs break-all text-primary">
+                    {img.remoteUrl}
+                  </a>
+                )}
                 <span className="text-xs">{img.altText}</span>
                 <span className="text-xs text-muted-foreground">
                   {img.licenseType}
                   {img.isPrimary ? " · primary" : ""}
+                  {img.rightsStatus !== "approved"
+                    ? ` · rights ${img.rightsStatus.replace("_", " ")}`
+                    : ""}
                 </span>
                 <div className="flex gap-2">
                   {!img.isPrimary ? (

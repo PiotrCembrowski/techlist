@@ -119,11 +119,7 @@ export function ProductCard({
             ))}
           </dl>
         ) : null}
-        <VerificationBadge
-          status={card.verificationStatus}
-          verifiedAt={card.lastVerifiedAt}
-          className="mt-auto pt-1"
-        />
+        <VerificationBadge verifiedAt={card.lastVerifiedAt} className="mt-auto pt-1" />
       </div>
       <div className="flex min-h-[60px] items-center justify-between gap-3 border-t px-4 py-3">
         <OfferLine card={card} market={market} />

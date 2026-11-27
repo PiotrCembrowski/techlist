@@ -66,7 +66,7 @@ function ResultRow({
           </span>
         ) : null}
         <span className="flex flex-wrap items-center gap-3">
-          <VerificationBadge status={hit.verificationStatus} verifiedAt={hit.lastVerifiedAt} />
+          <VerificationBadge verifiedAt={hit.lastVerifiedAt} />
           {hit.isDemo ? <DemoTag /> : null}
         </span>
       </div>

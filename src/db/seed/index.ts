@@ -258,8 +258,9 @@ export async function seedDemoData(db: Database, opts: SeedOptions = {}) {
       return {
         ...v,
         slug: p.slug,
-        publicationStatus: "published" as const,
-        verificationStatus: p.verification,
+        // All demo products are published; the demo data's `verification` only decides whether
+        // the product shows as verified (last_verified_at) or "not verified yet".
+        status: "published" as const,
         lastVerifiedAt: p.verification === "needs_review" ? null : verifiedAt,
       };
     });
@@ -283,8 +284,7 @@ export async function seedDemoData(db: Database, opts: SeedOptions = {}) {
         "productStatus",
         "isFeatured",
         "isDemo",
-        "publicationStatus",
-        "verificationStatus",
+        "status",
         "lastVerifiedAt",
       ],
     );
@@ -342,6 +342,7 @@ export async function seedDemoData(db: Database, opts: SeedOptions = {}) {
         "storageConfiguration",
         "barcodeGtin",
         "isDefault",
+        "status",
       ],
     );
     const variants = await tx

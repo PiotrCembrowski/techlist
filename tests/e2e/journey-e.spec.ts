@@ -70,9 +70,9 @@ test.describe("Journey E: CSV import", () => {
     await page.getByRole("button", { name: "Commit import" }).click();
     await expect(page.getByRole("status")).toContainText("Import committed: 2 rows applied");
     const [product] = await sql<
-      { id: string; publication_status: string }[]
-    >`SELECT id, publication_status FROM products WHERE model_number = ${model}`;
-    expect(product?.publication_status).toBe("draft");
+      { id: string; status: string }[]
+    >`SELECT id, status FROM products WHERE model_number = ${model}`;
+    expect(product?.status).toBe("needs_review");
     expect(
       (await sql`SELECT 1 FROM product_variants WHERE product_id = ${product!.id}`).length,
     ).toBe(2);

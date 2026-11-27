@@ -51,6 +51,8 @@ export default defineConfig({
       NODE_ENV: "production",
       AUTH_SECRET: process.env.AUTH_SECRET ?? "e2e-test-secret-not-for-production-use-0000",
       STORAGE_LOCAL_DIR: "storage/e2e-uploads",
+      // Offline synthetic provider for the Import Center journey (demo mode only).
+      FIXTURE_PROVIDER: "true",
     },
   },
 });

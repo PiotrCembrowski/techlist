@@ -69,6 +69,8 @@ export const ENTITY = {
     P990013: [item("P990013", "Q990400")],
     P990014: [time("P990014", "+2026-01-01T00:00:00Z", 10)],
     P990015: [str("P990015", "ZP3-ID", "external-id")], // external IDs are not features
+    // Several values (e.g. per configuration): not merged into one feature.
+    P990017: [qty("P990017", "+128", "Q990901"), qty("P990017", "+256", "Q990901")],
     P990016: [
       {
         mainsnak: { snaktype: "novalue", property: "P990016", datatype: "string" },
@@ -91,6 +93,7 @@ export const LABELS = {
   P990012: { id: "P990012", labels: label("fixture count") },
   P990013: { id: "P990013", labels: label("operating system") },
   P990014: { id: "P990014", labels: label("inception") },
+  P990017: { id: "P990017", labels: label("configurable storage") },
 };
 export const IMAGEINFO = {
   batchcomplete: true,

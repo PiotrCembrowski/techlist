@@ -56,3 +56,21 @@ Images: Icecat's JSON manual says to download images and host them yourself and 
 Icecat file links. The import does not re-host images, so **no Icecat images are imported** and
 no Icecat image host is on the allow-list. Adding them needs the re-hosting work described under
 Images above.
+
+## Wikidata and Wikimedia Commons
+
+- **Wikidata structured data is CC0** (Wikidata:Licensing): it may be stored and shown without
+  attribution. The source records “Data from Wikidata (CC0)” and product pages list Wikidata
+  with its retrieval date and the import change note.
+- **Commons images keep their own licence.** Each file is imported with its author, licence,
+  licence URL, file page and any stated reuse restrictions (e.g. trademarked), starts as
+  **needs review**, and the review screen shows all of these. Files marked non-free or without a
+  stated licence are skipped. Once approved, the gallery shows the file's credit line —
+  “author, licence, via Wikimedia Commons”, or the file's own attribution text — linked to the
+  file page.
+- **Hotlinking:** Commons allows it but does not recommend it (files can be renamed or deleted).
+  Thumbnails are linked from `upload.wikimedia.org`, the only host on the remote-image
+  allow-list. ShareAlike licences apply to the image itself, not to our page.
+- Before ticking **Usage is permitted** for Wikidata: nothing beyond the above; check images one
+  by one in the review queue (author, licence, restrictions such as trademarks or personality
+  rights).

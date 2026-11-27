@@ -71,6 +71,13 @@
       "when": 1795626260522,
       "tag": "0009_provenance_manual_raw_record",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1795796430313,
+      "tag": "0010_image_source_url",
+      "breakpoints": true
     }
   ]
 }

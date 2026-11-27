@@ -1,7 +1,7 @@
 # Free-data product import
 
 Imports product data from sources that are free to use, with every value traceable to its source
-and nothing published without an editor's review. Decisions: `docs/DECISIONS.md` D77–D81.
+and nothing published without an editor's review. Decisions: `docs/DECISIONS.md` D77–D83.
 
 | Page                                                     | What it covers                                                         |
 | -------------------------------------------------------- | ---------------------------------------------------------------------- |
@@ -80,7 +80,7 @@ worker process.
 | 2     | Single status; schema; adapter contract; HTTP client; quota ledger; cache; settings; env | Done                                                                   |
 | 3     | Normalisation, GTIN-14, category definitions + bootstrap, matching, provenance, upserts  | Done                                                                   |
 | 4     | Open Icecat adapter + feature mappings                                                   | Done (no images; mappings made in the admin — providers.md)            |
-| 5     | Wikidata adapter + Commons image licences                                                | **Not built** yet                                                      |
+| 5     | Wikidata adapter + Commons image licences                                                | Done (search, item IDs, GTINs; Commons images with per-file credit)    |
 | 6     | UPCitemdb adapter                                                                        | **Not built** yet                                                      |
 | 7     | eBay adapter                                                                             | **Not built**: needs the licence report and the owner's approval first |
 | 8     | Import Center admin UI                                                                   | Done                                                                   |

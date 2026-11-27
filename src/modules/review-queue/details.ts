@@ -260,6 +260,15 @@ export async function getReviewDetails(db: DbOrTx, item: ReviewItem): Promise<Re
           ...(typeof p.licenseUrl === "string"
             ? [{ label: "Licence terms", value: p.licenseUrl, href: p.licenseUrl }]
             : []),
+          ...(typeof p.sourceUrl === "string" && /^https:\/\//i.test(p.sourceUrl)
+            ? [{ label: "File page", value: p.sourceUrl, href: p.sourceUrl }]
+            : []),
+          ...(typeof p.attribution === "string"
+            ? [{ label: "Credit line shown", value: p.attribution }]
+            : []),
+          ...(Array.isArray(p.restrictions) && p.restrictions.length
+            ? [{ label: "Reuse restrictions", value: p.restrictions.map(String).join(", ") }]
+            : []),
         ],
         approveLabel: "Rights confirmed: show image",
         rejectLabel: "Do not use image",

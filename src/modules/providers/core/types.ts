@@ -76,6 +76,12 @@ export interface ProviderImage {
   author: string | null;
   licence: string | null;
   licenceUrl: string | null;
+  /** Credit line for this image when it has its own licence (imageLicence "per_image"). */
+  attribution?: string | null;
+  /** Page describing the file at its source (e.g. the Commons file page). */
+  sourceUrl?: string | null;
+  /** Reuse restrictions the source states (e.g. trademarked, personality rights), for review. */
+  restrictions?: string[];
 }
 
 /** One product as a provider describes it. Values are exactly what the provider returned. */

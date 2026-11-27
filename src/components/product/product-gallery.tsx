@@ -37,7 +37,13 @@ export function ProductGallery({ images }: { images: PublicImage[] }) {
       ) : null}
       {current.attribution ? (
         <figcaption className="px-3 pb-3 text-xs text-muted-foreground">
-          {current.attribution}
+          {current.attributionUrl ? (
+            <a href={current.attributionUrl} rel="noopener" className="hover:text-primary">
+              {current.attribution}
+            </a>
+          ) : (
+            current.attribution
+          )}
         </figcaption>
       ) : null}
     </figure>

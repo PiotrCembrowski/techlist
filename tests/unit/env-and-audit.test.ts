@@ -103,9 +103,13 @@ describe("remote images", () => {
     expect(isAllowedRemoteImage("https://u@img.example.test/a.jpg", hosts)).toBe(false);
     expect(isAllowedRemoteImage("https://sub.img.example.test/a.jpg", hosts)).toBe(false);
     expect(isAllowedRemoteImage("javascript:alert(1)", hosts)).toBe(false);
-    // Nothing is allowed until each provider's image host is verified.
-    expect(REMOTE_IMAGE_HOSTS).toEqual([]);
+    // Only verified provider image hosts: Wikimedia Commons (D83); Icecat on purpose not (D81).
+    expect(REMOTE_IMAGE_HOSTS).toEqual(["upload.wikimedia.org"]);
     expect(isAllowedRemoteImage("https://img.example.test/a.jpg")).toBe(false);
+    expect(isAllowedRemoteImage("https://upload.wikimedia.org/wikipedia/commons/a/ab/X.jpg")).toBe(
+      true,
+    );
+    expect(isAllowedRemoteImage("https://images.icecat.biz/img/x.jpg")).toBe(false);
   });
   it("adds listed hosts to the CSP img-src", async () => {
     const { contentSecurityPolicy } = await import("@/lib/security/csp");
@@ -116,7 +120,7 @@ describe("remote images", () => {
     });
     expect(csp).toContain("img-src 'self' data: blob: https://img.example.test;");
     expect(contentSecurityPolicy("n", { dev: false, https: true })).toContain(
-      "img-src 'self' data: blob:;",
+      "img-src 'self' data: blob: https://upload.wikimedia.org;",
     );
   });
 });

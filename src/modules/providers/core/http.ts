@@ -65,6 +65,11 @@ export interface HttpRequest {
   body?: string;
   /** Cache successful responses for this long; 0/undefined = no cache. */
   cacheTtlSeconds?: number;
+  /**
+   * Whether a successful response may be cached. For APIs that report errors with HTTP 200
+   * (e.g. MediaWiki's maxlag), so an error body is never served from the cache.
+   */
+  cacheable?: (body: string) => boolean;
 }
 
 export interface HttpResponse {
@@ -230,7 +235,7 @@ export class ProviderHttpClient {
 
       const body = await this.readCapped(res);
       const contentType = res.headers.get("content-type");
-      if (res.ok && req.cacheTtlSeconds && this.o.db) {
+      if (res.ok && req.cacheTtlSeconds && this.o.db && (req.cacheable?.(body) ?? true)) {
         await putCachedResponse(this.o.db, {
           provider: this.o.provider,
           key,

@@ -446,6 +446,8 @@ export const productImages = pgTable(
     mimeType: text(),
     author: text(),
     licenseUrl: text(),
+    /** Page describing the file at its source (e.g. the Wikimedia Commons file page), for credit. */
+    sourceUrl: text(),
     rightsStatus: imageRightsStatus().notNull().default("approved"),
     altText: text().notNull(),
     imageType: imageType().notNull().default("product"),
